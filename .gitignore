@@ -42,6 +42,9 @@ coverage/
 # === Live Server / local server artifacts ===
 .live-server/
 
+# === Media assets (keep out of git) ===
+*.mp4
+
 # === Docs: temporary artifacts ===
 docs/_xlsx_tmp/
 docs/*.zip
