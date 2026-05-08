@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      touch-action: none;
+    }
+
+    #viewport {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 3000px;
+      height: 1800px;
+      transform-origin: top left;
+      will-change: transform;
+    }
+
+    .layer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 3000px;
+      height: 1800px;
+    }
+
+    .photo {
+      position: absolute;
+      width: 520px;  /* 画像幅：ここを変更 */
+      height: 360px; /* 画像高さ：ここを変更 */
+      object-fit: cover;
+      border: 1px solid #222;
+      box-sizing: border-box;
+    }
+
+    .photo-1 { left: 80px; top: 80px; }
+    .photo-2 { left: 700px; top: 140px; }
+    .photo-3 { left: 1320px; top: 70px; }
+    .photo-4 { left: 2100px; top: 180px; }
+
+    .photo-5 { left: 240px; top: 780px; }
+    .photo-6 { left: 920px; top: 920px; }
+    .photo-7 { left: 1620px; top: 720px; }
+    .photo-8 { left: 2320px; top: 1040px; }
+
+    #bg-gray {
+      filter: grayscale(100%);
+      z-index: 1;
+    }
+
+    #color-layer {
+      z-index: 2;
+      pointer-events: none;
+      clip-path: circle(0px at 0px 0px);
+    }
+
+    #bubble {
+      position: absolute;
+      width: 250px;
+      height: 250px;
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      box-shadow:
+        inset 0 0 20px rgba(255, 255, 255, 0.3),
+        0 0 50px rgba(100, 200, 255, 0.25);
+      backdrop-filter: contrast(1.2) brightness(1.2);
+      z-index: 10;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="viewport">
+    <div id="world">
+      <div class="layer" id="bg-gray">
+        <img class="photo photo-1" src="https://picsum.photos/520/360?random=1">
+        <img class="photo photo-2" src="https://picsum.photos/520/360?random=2">
+        <img class="photo photo-3" src="https://picsum.photos/520/360?random=3">
+        <img class="photo photo-4" src="https://picsum.photos/520/360?random=4">
+        <img class="photo photo-5" src="https://picsum.photos/520/360?random=5">
+        <img class="photo photo-6" src="https://picsum.photos/520/360?random=6">
+        <img class="photo photo-7" src="https://picsum.photos/520/360?random=7">
+        <img class="photo photo-8" src="https://picsum.photos/520/360?random=8">
+      </div>
+
+      <div class="layer" id="color-layer">
+        <img class="photo photo-1" src="https://picsum.photos/520/360?random=1">
+        <img class="photo photo-2" src="https://picsum.photos/520/360?random=2">
+        <img class="photo photo-3" src="https://picsum.photos/520/360?random=3">
+        <img class="photo photo-4" src="https://picsum.photos/520/360?random=4">
+        <img class="photo photo-5" src="https://picsum.photos/520/360?random=5">
+        <img class="photo photo-6" src="https://picsum.photos/520/360?random=6">
+        <img class="photo photo-7" src="https://picsum.photos/520/360?random=7">
+        <img class="photo photo-8" src="https://picsum.photos/520/360?random=8">
+      </div>
+    </div>
+
+    <div id="bubble"></div>
+  </div>
+
+  <script>
+    const viewport = document.getElementById('viewport');
+    const world = document.getElementById('world');
+    const bubble = document.getElementById('bubble');
+    const colorLayer = document.getElementById('color-layer');
+
+    const worldWidth = 3000;
+    const worldHeight = 1800;
+
+    let viewportWidth = window.innerWidth;
+    let viewportHeight = window.innerHeight;
+
+    let cameraX = 0;
+    let cameraY = 0;
+
+    let worldScale = 1;
+    const minScale = 0.7;
+    const maxScale = 2.4;
+
+    const bubbleSize = 250;
+    const bubbleRadius = bubbleSize / 2;
+
+    let isBubbleActive = false;
+    let lastScreenX = null;
+    let lastScreenY = null;
+    let lastPinchDistance = null;
+    let animationId = null;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function updateViewportSize() {
+      viewportWidth = window.innerWidth;
+      viewportHeight = window.innerHeight;
+      clampCamera();
+      updateWorldTransform();
+    }
+
+    function getMaxCameraX() {
+      return Math.max(0, worldWidth - viewportWidth / worldScale);
+    }
+
+    function getMaxCameraY() {
+      return Math.max(0, worldHeight - viewportHeight / worldScale);
+    }
+
+    function clampCamera() {
+      cameraX = clamp(cameraX, 0, getMaxCameraX());
+      cameraY = clamp(cameraY, 0, getMaxCameraY());
+    }
+
+    function updateWorldTransform() {
+      clampCamera();
+      world.style.transform =
+        `translate(${-cameraX * worldScale}px, ${-cameraY * worldScale}px) scale(${worldScale})`;
+    }
+
+    function screenToWorld(screenX, screenY) {
+      return {
+        x: cameraX + screenX / worldScale,
+        y: cameraY + screenY / worldScale
+      };
+    }
+
+    function updateBubble(screenX, screenY) {
+      lastScreenX = screenX;
+      lastScreenY = screenY;
+
+      bubble.style.width = `${bubbleSize}px`;
+      bubble.style.height = `${bubbleSize}px`;
+      bubble.style.left = `${screenX - bubbleRadius}px`;
+      bubble.style.top = `${screenY - bubbleRadius}px`;
+
+      const worldPos = screenToWorld(screenX, screenY);
+      const radiusInWorld = bubbleRadius / worldScale;
+
+      colorLayer.style.clipPath =
+        `circle(${radiusInWorld}px at ${worldPos.x}px ${worldPos.y}px)`;
+    }
+
+    function getTouchCenter(touch1, touch2) {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    }
+
+    function getTouchDistance(touch1, touch2) {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function showBubble(screenX, screenY) {
+      isBubbleActive = true;
+      bubble.style.display = 'block';
+      updateBubble(screenX, screenY);
+      startAutoPan();
+    }
+
+    function hideBubble() {
+      isBubbleActive = false;
+      bubble.style.display = 'none';
+      colorLayer.style.clipPath = `circle(0px at 0px 0px)`;
+      lastPinchDistance = null;
+      stopAutoPan();
+    }
+
+    function autoPan() {
+      if (!isBubbleActive || lastScreenX === null || lastScreenY === null) {
+        animationId = requestAnimationFrame(autoPan);
+        return;
+      }
+
+      const edgeThreshold = Math.min(viewportWidth, viewportHeight) * 0.12;
+      const panSpeed = 10 / worldScale;
+
+      if (lastScreenX > viewportWidth - edgeThreshold) {
+        cameraX += panSpeed;
+      }
+
+      if (lastScreenX < edgeThreshold) {
+        cameraX -= panSpeed;
+      }
+
+      if (lastScreenY > viewportHeight - edgeThreshold) {
+        cameraY += panSpeed;
+      }
+
+      if (lastScreenY < edgeThreshold) {
+        cameraY -= panSpeed;
+      }
+
+      updateWorldTransform();
+      updateBubble(lastScreenX, lastScreenY);
+
+      animationId = requestAnimationFrame(autoPan);
+    }
+
+    function startAutoPan() {
+      if (animationId === null) {
+        animationId = requestAnimationFrame(autoPan);
+      }
+    }
+
+    function stopAutoPan() {
+      if (animationId !== null) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+    }
+
+    function zoomWorld(centerX, centerY, newScale) {
+      const beforeZoomWorldPos = screenToWorld(centerX, centerY);
+
+      worldScale = clamp(newScale, minScale, maxScale);
+
+      cameraX = beforeZoomWorldPos.x - centerX / worldScale;
+      cameraY = beforeZoomWorldPos.y - centerY / worldScale;
+
+      updateWorldTransform();
+      updateBubble(centerX, centerY);
+    }
+
+    window.addEventListener('resize', updateViewportSize);
+
+    window.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+
+      if (e.touches.length === 2) {
+        const center = getTouchCenter(e.touches[0], e.touches[1]);
+
+        if (!isBubbleActive) {
+          showBubble(center.x, center.y);
+        }
+
+        lastPinchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        updateBubble(center.x, center.y);
+      }
+
+      if (e.touches.length === 3 && isBubbleActive) {
+        hideBubble();
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      if (!isBubbleActive) return;
+
+      e.preventDefault();
+
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        updateBubble(touch.clientX, touch.clientY);
+      }
+
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+
+        const center = getTouchCenter(touch1, touch2);
+        const currentDistance = getTouchDistance(touch1, touch2);
+
+        if (lastPinchDistance !== null) {
+          const zoomRatio = currentDistance / lastPinchDistance;
+          zoomWorld(center.x, center.y, worldScale * zoomRatio);
+        }
+
+        lastPinchDistance = currentDistance;
+        updateBubble(center.x, center.y);
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+      e.preventDefault();
+
+      if (e.touches.length < 2) {
+        lastPinchDistance = null;
+      }
+    }, { passive: false });
+
+    updateViewportSize();
+  </script>
+</body>
+</html>
