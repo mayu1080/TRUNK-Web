@@ -42,3 +42,8 @@ coverage/
 # === Live Server / local server artifacts ===
 .live-server/
 
+# === Docs: temporary artifacts ===
+docs/_xlsx_tmp/
+docs/*.zip
+docs/*.extracted.json
+

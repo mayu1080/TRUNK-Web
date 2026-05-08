@@ -1,0 +1,75 @@
+flowchart TD
+  %% 画面遷移図
+  %% B案：探索デザイン重視型
+
+  %% =========================
+  %% スリープ（トップ群）
+  %% =========================
+  subgraph TOP_AREA["スリープ画面（4面表示）"]
+    direction LR
+    TOP_1["トップ-1"]
+    TOP_2["トップ-2"]
+    TOP_3["トップ-3"]
+    TOP_4["トップ-4"]
+  end
+
+  %% =========================
+  %% 祝祭演出 / 導入アニメーション
+  %% =========================
+  FESTIVAL["祝祭演出\n(特別アニメーション 3-5秒)"]
+  ANIMATION_1["アニメーション_1\n(探索画面遷移前)"]
+
+  %% =========================
+  %% 探索体験
+  %% =========================
+  EXPLORE["探索画面"]
+  CATEGORY["カテゴリ画面"]
+  DETAIL["詳細画面"]
+  IMAGE_ZOOM["画像拡大画面\n(モーダル)"]
+
+  %% =========================
+  %% 基本導線
+  %% =========================
+  TOP_1 -->|指定箇所タップ| ANIMATION_1
+  TOP_1 -->|指定箇所ダブルタップ| FESTIVAL
+  FESTIVAL -->|演出終了| ANIMATION_1
+  ANIMATION_1 -->|演出終了| EXPLORE
+
+  TOP_2 --> ANIMATION_1
+  TOP_3 --> ANIMATION_1
+  TOP_4 --> ANIMATION_1
+
+  EXPLORE -->|画像タップ| IMAGE_ZOOM
+  IMAGE_ZOOM -->|×ボタン| EXPLORE
+
+  EXPLORE -->|ハンバーガーメニュー| CATEGORY
+  CATEGORY -->|×ボタン| EXPLORE
+  CATEGORY -->|カテゴリ選択| DETAIL
+  DETAIL -->|×ボタン| CATEGORY
+
+  %% =========================
+  %% 回遊・復帰導線
+  %% =========================
+  EXPLORE -->|一定時間操作なし| TOP_1
+  CATEGORY -->|一定時間操作なし| TOP_1
+  DETAIL -->|一定時間操作なし| TOP_1
+  IMAGE_ZOOM -->|一定時間操作なし| TOP_1
+
+  %% =========================
+  %% 表示スタイル
+  %% =========================
+  classDef top fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
+  classDef animation fill:#cfe3ff,stroke:#6a9bd8,stroke-width:1px,color:#222;
+  classDef explore fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
+  classDef category fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
+  classDef detail fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
+  classDef zoom fill:#ffffff,stroke:#777,stroke-width:1px,color:#222;
+  classDef special fill:#ffffff,stroke:#777,stroke-width:1px,color:#222;
+
+  class TOP_1,TOP_2,TOP_3,TOP_4 top;
+  class FESTIVAL special;
+  class ANIMATION_1 animation;
+  class EXPLORE explore;
+  class CATEGORY category;
+  class DETAIL detail;
+  class IMAGE_ZOOM zoom;
