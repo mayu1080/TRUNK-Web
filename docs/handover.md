@@ -2,7 +2,7 @@
 
 | 項目 | 内容 |
 |------|------|
-| 版 | 1.0 |
+| 版 | 1.2 |
 | 作成日 | 2026-05-27 |
 | 対象フェーズ | 納品用実装（試作コードはリポジトリから除去済み） |
 | 想定読者 | 実装担当 / 検収担当 / 運用担当 |
@@ -17,7 +17,8 @@
 |------|------|
 | 画面状態ID | 実装で保持する `screenState` の値（例: `PRODUCT_LIST`） |
 | scrollSection | `PRODUCT_DETAIL` 内の表示位置（例: `DETAIL_SECTION_1`） |
-| 4面同期 | 4台のタッチモニターが同一タイミングで同じ画面・アニメーションを表示すること |
+| categoryDrawer | `PRODUCT_LIST` 上の右側スライドドロワー（`open` / `closed`）。CATEGORY は UX 名称 |
+| 4面同期 | 4台が同一タイミングで同じ画面・アニメーションを表示すること（範囲は TOP→LIST まで） |
 | 正（Source of Truth） | 矛盾時に優先するドキュメント。本プロジェクトでは `function.xlsx` が最上位 |
 
 ---
@@ -50,6 +51,7 @@
 
 ```
 TRUNK_delivery/
+├── README.md             # 外注共有の入口
 ├── .gitignore
 ├── assets/
 │   └── .gitkeep          # メディア配置用（未同梱）
@@ -59,7 +61,10 @@ TRUNK_delivery/
     ├── screen-flow.md    # 画面遷移（人間向け）
     ├── screen-flow.mmd   # Mermaid ソース
     ├── screen-flow.png   # 画面遷移図（screen-flow.mmd から生成）
-    └── handover.md       # 本書
+    ├── handover.md       # 本書
+    ├── open-questions.md # 未決事項
+    ├── architecture.md   # 実施設計（草案）
+    └── security.md       # セキュリティ設計（草案）
 ```
 
 ### 各ファイルの役割
@@ -72,14 +77,15 @@ TRUNK_delivery/
 | `screen-flow.mmd` | 図のソース（エディタ / Mermaid 対応ツールでレンダリング） |
 | `screen-flow.png` | 画面遷移図（PNG）。`screen-flow.mmd` を正として生成 |
 | `assets/.gitkeep` | 画像・動画の配置先プレースホルダ |
+| `README.md` | 外注向け入口・廃止仕様・同期範囲 |
+| `open-questions.md` | 未決事項一覧 |
+| `architecture.md` | 実施設計テンプレ |
+| `security.md` | セキュリティ設計テンプレ |
 
-### 削除済み資産（Git 参照）
+### Git 履歴について
 
-| パス | 参照コマンド例 | 備考 |
-|------|----------------|------|
-| `index.html` | `git show a242758^:index.html` | 探索体験試作 |
-| `README.md` | `git show a242758^:README.md` | 試作説明 |
-| `setup/` | `git show f97e996:setup/README.md` | キオスク・受入メモ |
+旧試作（`index.html` / 旧 `setup/` 等）は Git 履歴に残る場合があります。
+**仕様根拠として Git 履歴を参照しないでください。** 現行 `docs/` のみを正とします。
 
 ### メディア・Git 方針
 
@@ -112,12 +118,21 @@ TRUNK_delivery/
 
 ## 5. 機能要件（必須）
 
-### 5.1 4画面同期（納品合意・xlsx 外明示）
+### 5.1 4画面同期（確定）
 
 | ID | 内容 |
 |----|------|
-| MULTI_MONITOR_TOUCH_SYNC | 4台のいずれかで有効タッチ → 4台すべて同一遷移（`TOP` から `ANIMATION`） |
+| MULTI_MONITOR_SYNC_ENTRY | 4面同期は `TOP` → `ANIMATION` → `PRODUCT_LIST` まで |
+| MULTI_MONITOR_INDEPENDENT_AFTER_LIST | `PRODUCT_LIST` 以降は各モニター操作は独立（別ユーザーが同時探索可能） |
 | MULTI_MONITOR_ANIMATION_SYNC | `ANIMATION` は4面同期再生が必須 |
+
+### 5.1.1 CATEGORY / IMAGE_ZOOM（確定）
+
+| 項目 | 内容 |
+|------|------|
+| CATEGORY | 独立 screenState ではない。`PRODUCT_LIST` + `categoryDrawer`（UX名称として CATEGORY は可） |
+| IMAGE_ZOOM | `PRODUCT_DETAIL` 上の overlay。`screenState` は独立可。×は常に `PRODUCT_LIST` |
+| PRODUCT_DETAIL × | `PRODUCT_LIST` へ戻る |
 
 ### 5.2 画面状態モデル
 
@@ -127,10 +142,16 @@ TRUNK_delivery/
 |--------|--------|------|
 | `TOP` | スリープ画面 | panel 1〜4 |
 | `ANIMATION` | アニメーション_1 | 4面同期 |
-| `PRODUCT_LIST` | 探索画面 | 商品探索一覧 |
-| `CATEGORY` | カテゴリ画面 | |
+| `PRODUCT_LIST` | 探索画面 | 商品探索一覧。`categoryDrawer` 併用 |
 | `PRODUCT_DETAIL` | 詳細画面 | scrollSection 併用 |
-| `IMAGE_ZOOM` | 画像拡大 | モーダル |
+| `IMAGE_ZOOM` | 画像拡大 | overlay。状態は独立 screenState |
+
+`PRODUCT_LIST` 専用（`categoryDrawer`、独立 screenState ではない）:
+
+| 値 | UX名称 | 備考 |
+|----|--------|------|
+| `open` | CATEGORY | 右側スライドドロワー表示 |
+| `closed` | — | ドロワー非表示 |
 
 `PRODUCT_DETAIL` 専用（`scrollSection`）:
 
@@ -151,7 +172,7 @@ TRUNK_delivery/
 | `DETAIL` | `PRODUCT_DETAIL` |
 | `IMAGE_ZOOM` | `IMAGE_ZOOM`（変更なし） |
 | `FESTIVAL` | **廃止**（function.xlsx から削除） |
-| `CATEGORY` | `CATEGORY`（変更なし） |
+| `CATEGORY`（独立 screenState） | **`categoryDrawer`（`PRODUCT_LIST` 上）** |
 
 ---
 
@@ -164,14 +185,19 @@ TRUNK_delivery/
 | from | to | trigger |
 |------|-----|---------|
 | TOP | ANIMATION | 指定箇所タップ（4面同期） |
-| ANIMATION | PRODUCT_LIST | アニメーション終了 |
-| PRODUCT_LIST | IMAGE_ZOOM | 画像タップ |
-| IMAGE_ZOOM | PRODUCT_LIST | ×ボタン |
-| PRODUCT_LIST | CATEGORY | ハンバーガーメニュー |
-| CATEGORY | PRODUCT_LIST | ×ボタン |
-| CATEGORY | PRODUCT_DETAIL | カテゴリ選択 |
-| PRODUCT_DETAIL | CATEGORY | ×ボタン |
-| PRODUCT_LIST / CATEGORY / PRODUCT_DETAIL / IMAGE_ZOOM | TOP | TRUNKロゴタップ |
+| ANIMATION | PRODUCT_LIST | アニメーション終了（4面同期） |
+| PRODUCT_LIST | PRODUCT_DETAIL | カテゴリ選択（categoryDrawer・当該モニター） |
+| PRODUCT_DETAIL | PRODUCT_LIST | ×ボタン（当該モニター） |
+| PRODUCT_DETAIL | IMAGE_ZOOM | 画像タップ overlay（当該モニター） |
+| IMAGE_ZOOM | PRODUCT_LIST | ×ボタン（常に LIST・当該モニター） |
+| PRODUCT_LIST / PRODUCT_DETAIL / IMAGE_ZOOM | TOP | TRUNKロゴタップ（当該モニター） |
+
+**uiState（screenState 遷移ではない）**
+
+| screen | uiState | 変化 | trigger |
+|--------|---------|------|---------|
+| PRODUCT_LIST | categoryDrawer | closed → open | ハンバーガーメニュー |
+| PRODUCT_LIST | categoryDrawer | open → closed | ×ボタン |
 
 ### 旧仕様からの変更点
 
@@ -181,19 +207,24 @@ TRUNK_delivery/
 | 画像拡大の戻り先 | 探索画面 | `PRODUCT_LIST`（同一） |
 | ロゴタップで TOP 復帰 | 旧 README に近い運用 | **xlsx「共通UI」として明記** |
 | 祝祭演出（FESTIVAL） | ダブルタップ導線あり | **廃止**（function.xlsx から削除） |
+| CATEGORY | 独立画面 | **categoryDrawer**（`PRODUCT_LIST` 上） |
+| 4面同期の範囲 | 全操作同期想定 | **TOP→LIST のみ同期、以降は各台独立** |
+| IMAGE_ZOOM の × | 直前画面復帰 | **常に `PRODUCT_LIST`** |
+| PRODUCT_DETAIL の × | CATEGORY へ | **`PRODUCT_LIST` へ** |
 
 ---
 
 ## 7. 未確定・要確認事項
 
+詳細は `docs/open-questions.md` を参照。
+
 | # | 項目 | 現状 |
 |---|------|------|
-| 1 | 4面同期の技術方式 | 未決（WebSocket / ローカルブロードキャスト / 専用ミドルウェア等） |
-| 2 | 無操作タイムアウトで TOP 復帰 | xlsx になし。必要なら要件追加 |
-| 3 | 実装スタック | 未決（HTML+JS / React / Unity / TouchDesigner 等） |
-| 4 | `screen-flow.png` の再生成 | mmd 変更時は `npx @mermaid-js/mermaid-cli` 等で更新 |
-| 5 | メディアマニフェスト形式 | 未作成 |
-| 6 | 詳細画面「4セクション」と DETAIL_SECTION_1/2 の対応 | スクロール上の2区分を SECTION_1/2 とし、残り2区分は実装時レイアウト定義 |
+| 1 | 無操作タイムアウトで TOP 復帰 | 未決 |
+| 2 | 4面同期の技術方式 | 未決（範囲は確定済み） |
+| 3 | 実装スタック / HW | 未決 |
+| 4 | メディアマニフェスト形式 | 未作成 |
+| 5 | 詳細画面「4セクション」と DETAIL_SECTION_1/2 の対応 | 未決 |
 
 ---
 
@@ -203,9 +234,11 @@ TRUNK_delivery/
 
 ```text
 {
-  screenState: 'TOP' | 'ANIMATION' | 'PRODUCT_LIST' | 'CATEGORY' | 'PRODUCT_DETAIL' | 'IMAGE_ZOOM',
+  screenState: 'TOP' | 'ANIMATION' | 'PRODUCT_LIST' | 'PRODUCT_DETAIL' | 'IMAGE_ZOOM',
+  categoryDrawer?: 'open' | 'closed',  // screenState=PRODUCT_LIST 時（CATEGORY は UX 名称）
   scrollSection?: 'DETAIL_SECTION_1' | 'DETAIL_SECTION_2',
-  topPanelIndex?: 1 | 2 | 3 | 4
+  topPanelIndex?: 1 | 2 | 3 | 4,
+  // PRODUCT_LIST 以降はモニター単位で保持
 }
 ```
 
@@ -217,7 +250,7 @@ TRUNK_delivery/
 1. `screenState` 遷移のみの骨格（モック UI）
 2. `TOP` → `ANIMATION` → `PRODUCT_LIST` + 4面同期の配線
 3. `PRODUCT_LIST` 探索操作（スワイプ・ピンチ・描画基盤）
-4. `CATEGORY` / `PRODUCT_DETAIL` / `IMAGE_ZOOM`
+4. `categoryDrawer` / `PRODUCT_DETAIL` / `IMAGE_ZOOM`（各台独立）
 5. 没入感演出・60fps / 低遅延の最適化
 
 ### 試作からの流用可否
@@ -249,10 +282,12 @@ TRUNK_delivery/
 
 - [ ] 4台のいずれかでタップ → 4台とも `ANIMATION` へ同期遷移
 - [ ] `ANIMATION` 終了 → 4台とも `PRODUCT_LIST`
-- [ ] 探索画面で画像タップ → `IMAGE_ZOOM`、×で `PRODUCT_LIST`
-- [ ] ハンバーガー → `CATEGORY` → カテゴリ選択 → `PRODUCT_DETAIL`
-- [ ] `PRODUCT_DETAIL` で詳細-1/2 が別画面遷移になっていない（scroll のみ）
-- [ ] ロゴタップで `TOP` 復帰
+- [ ] `PRODUCT_LIST` 以降、各台で独立に探索・詳細・拡大が操作できる
+- [ ] categoryDrawer（CATEGORY）→ カテゴリ選択 → `PRODUCT_DETAIL`（当該台のみ）
+- [ ] `PRODUCT_DETAIL` の × → `PRODUCT_LIST`（当該台のみ）
+- [ ] `PRODUCT_DETAIL` 上で画像タップ → `IMAGE_ZOOM`、×で常に `PRODUCT_LIST`
+- [ ] `PRODUCT_DETAIL` で詳細-1/2 が別 screenState になっていない（scroll のみ）
+- [ ] ロゴタップで `TOP` 復帰（当該台のみ）
 - [ ] 60fps・タッチ遅延が体感上問題ないこと（計測方法は別途定義）
 
 ---
@@ -270,14 +305,15 @@ TRUNK_delivery/
 
 ### A. 遷移マトリクス（簡易）
 
-|  | TOP | ANIM | LIST | CAT | DETAIL | ZOOM |
-|--|:---:|:---:|:---:|:---:|:---:|:---:|
-| TOP | | ✓ | | | | |
-| ANIM | | | ✓ | | | |
-| LIST | ✓* | | | | ✓ | | ✓ |
-| CAT | ✓* | | | ✓ | | ✓ | |
-| DETAIL | ✓* | | | | ✓ | | |
-| ZOOM | ✓* | | | ✓ | | | |
+|  | TOP | ANIM | LIST | DETAIL | ZOOM |
+|--|:---:|:---:|:---:|:---:|:---:|
+| TOP | | ✓ | | | |
+| ANIM | | | ✓ | | |
+| LIST | ✓* | | | ✓† | |
+| DETAIL | ✓* | | ✓ | | ✓ |
+| ZOOM | ✓* | ✓‡ | | | |
+
+† categoryDrawer 経由（uiState）。‡ ×は常に LIST（直前復帰なし）。
 
 \* ロゴタップ。×やタップによる通常遷移は §6 参照。
 
@@ -303,3 +339,4 @@ TRUNK_delivery/
 |----|------|------|
 | 1.0 | 2026-05-27 | 初版。function.xlsx 準拠で screen-flow 更新、状態ID統一 |
 | 1.1 | 2026-05-27 | `FESTIVAL`（祝祭演出）廃止。function.xlsx 削除に合わせ screen-flow 更新 |
+| 1.2 | 2026-05-27 | CATEGORY→categoryDrawer、IMAGE_ZOOM overlay、4面同期範囲確定、README/open-questions/architecture/security 追加 |

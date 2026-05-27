@@ -11,36 +11,30 @@ flowchart TD
   end
 
   ANIMATION["ANIMATION\nアニメーション_1"]
-  PRODUCT_LIST["PRODUCT_LIST\n探索画面"]
-  CATEGORY["CATEGORY\nカテゴリ画面"]
+  PRODUCT_LIST["PRODUCT_LIST\n探索画面\n+ categoryDrawer"]
   PRODUCT_DETAIL["PRODUCT_DETAIL\n詳細画面\nscrollSection"]
-  IMAGE_ZOOM["IMAGE_ZOOM\n画像拡大（モーダル）"]
+  IMAGE_ZOOM["IMAGE_ZOOM\n画像拡大 overlay"]
 
   TOP_AREA -->|指定箇所タップ・4面同期| ANIMATION
-  ANIMATION -->|自動遷移| PRODUCT_LIST
+  ANIMATION -->|自動遷移・4面同期| PRODUCT_LIST
 
-  PRODUCT_LIST -->|画像タップ| IMAGE_ZOOM
-  IMAGE_ZOOM -->|×ボタン| PRODUCT_LIST
-
-  PRODUCT_LIST -->|ハンバーガーメニュー| CATEGORY
-  CATEGORY -->|×ボタン| PRODUCT_LIST
-  CATEGORY -->|カテゴリ選択| PRODUCT_DETAIL
-  PRODUCT_DETAIL -->|×ボタン| CATEGORY
+  PRODUCT_LIST -->|カテゴリ選択・各台独立| PRODUCT_DETAIL
+  PRODUCT_DETAIL -->|×・各台独立| PRODUCT_LIST
+  PRODUCT_DETAIL -->|画像タップ・各台独立| IMAGE_ZOOM
+  IMAGE_ZOOM -->|×→常に LIST・各台独立| PRODUCT_LIST
 
   PRODUCT_LIST -->|ロゴタップ| TOP_AREA
-  CATEGORY -->|ロゴタップ| TOP_AREA
   PRODUCT_DETAIL -->|ロゴタップ| TOP_AREA
   IMAGE_ZOOM -->|ロゴタップ| TOP_AREA
 
   classDef top fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
   classDef animation fill:#cfe3ff,stroke:#6a9bd8,stroke-width:1px,color:#222;
   classDef explore fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
-  classDef category fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
   classDef detail fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
   classDef zoom fill:#ffffff,stroke:#777,stroke-width:1px,color:#222;
+
   class P1,P2,P3,P4 top;
   class ANIMATION animation;
   class PRODUCT_LIST explore;
-  class CATEGORY category;
   class PRODUCT_DETAIL detail;
   class IMAGE_ZOOM zoom;
