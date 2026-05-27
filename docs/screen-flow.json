@@ -1,0 +1,137 @@
+{
+  "flowName": "B案：探索デザイン重視型",
+  "sourceOfTruth": "docs/function.xlsx（MUSTSHOULD要件一覧_2）",
+  "stateIdConvention": "実装・ドキュメント共通の画面状態ID（英大文字スネーク）",
+  "screens": [
+    {
+      "id": "TOP",
+      "name": "スリープ画面",
+      "type": "top",
+      "purpose": "4枚マルチモニター表示。いずれか1台の操作で全画面同期遷移する入口",
+      "panels": [
+        { "panelIndex": 1, "label": "トップ-1" },
+        { "panelIndex": 2, "label": "トップ-2" },
+        { "panelIndex": 3, "label": "トップ-3" },
+        { "panelIndex": 4, "label": "トップ-4" }
+      ]
+    },
+    {
+      "id": "ANIMATION",
+      "name": "アニメーション_1",
+      "type": "transition",
+      "purpose": "探索画面（商品探索一覧）遷移前のアニメーション。終了後に自動遷移"
+    },
+    {
+      "id": "PRODUCT_LIST",
+      "name": "探索画面",
+      "type": "explore",
+      "purpose": "40〜70枚の画像をランダム配置し、スワイプ・ピンチ・タップで探索する中心画面"
+    },
+    {
+      "id": "CATEGORY",
+      "name": "カテゴリ画面",
+      "type": "category",
+      "purpose": "カテゴリ一覧（テキスト）表示・選択。×で探索画面へ復帰"
+    },
+    {
+      "id": "PRODUCT_DETAIL",
+      "name": "詳細画面",
+      "type": "detail",
+      "purpose": "同一画面内の縦スクロール（4セクション程度）。Sticky Header＋画像・テキスト",
+      "scrollSections": [
+        {
+          "id": "DETAIL_SECTION_1",
+          "name": "詳細画面-1",
+          "purpose": "詳細画面内スクロールセクション（上部）"
+        },
+        {
+          "id": "DETAIL_SECTION_2",
+          "name": "詳細画面-2",
+          "purpose": "詳細画面内スクロールセクション（下部）。別画面ではなく同一 PRODUCT_DETAIL 内で管理"
+        }
+      ]
+    },
+    {
+      "id": "IMAGE_ZOOM",
+      "name": "画像拡大画面",
+      "type": "modal",
+      "purpose": "フルスクリーン画像表示（モーダル）。×で探索画面（PRODUCT_LIST）へ戻る"
+    }
+  ],
+  "syncRules": [
+    {
+      "id": "MULTI_MONITOR_TOUCH_SYNC",
+      "description": "4台のタッチモニターのいずれかで有効なタッチ操作が発生した場合、4台すべてで同一の画面状態・アニメーションへ遷移する",
+      "appliesFrom": ["TOP"],
+      "appliesTo": ["ANIMATION"]
+    },
+    {
+      "id": "MULTI_MONITOR_ANIMATION_SYNC",
+      "description": "導入アニメーション（ANIMATION）は4面同期再生が必須",
+      "appliesTo": ["ANIMATION"]
+    }
+  ],
+  "transitions": [
+    {
+      "from": "TOP",
+      "to": "ANIMATION",
+      "trigger": "指定箇所タップ（いずれか1台・4面同期）"
+    },
+    {
+      "from": "ANIMATION",
+      "to": "PRODUCT_LIST",
+      "trigger": "アニメーション終了（自動遷移）"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "IMAGE_ZOOM",
+      "trigger": "画像タップ（モーダル表示）"
+    },
+    {
+      "from": "IMAGE_ZOOM",
+      "to": "PRODUCT_LIST",
+      "trigger": "×ボタン"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "CATEGORY",
+      "trigger": "ハンバーガーメニュー選択"
+    },
+    {
+      "from": "CATEGORY",
+      "to": "PRODUCT_LIST",
+      "trigger": "×ボタン"
+    },
+    {
+      "from": "CATEGORY",
+      "to": "PRODUCT_DETAIL",
+      "trigger": "カテゴリ選択（タップ）"
+    },
+    {
+      "from": "PRODUCT_DETAIL",
+      "to": "CATEGORY",
+      "trigger": "×ボタン"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "TOP",
+      "trigger": "TRUNKロゴタップ（共通UI）"
+    },
+    {
+      "from": "CATEGORY",
+      "to": "TOP",
+      "trigger": "TRUNKロゴタップ（共通UI）"
+    },
+    {
+      "from": "PRODUCT_DETAIL",
+      "to": "TOP",
+      "trigger": "TRUNKロゴタップ（共通UI）"
+    },
+    {
+      "from": "IMAGE_ZOOM",
+      "to": "TOP",
+      "trigger": "TRUNKロゴタップ（共通UI）"
+    }
+  ],
+  "requirementsRef": "docs/function.xlsx"
+}
