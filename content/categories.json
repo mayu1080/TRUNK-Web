@@ -1,0 +1,16 @@
+[
+  {
+    "id": "food",
+    "label": "FOOD",
+    "description": "Sample food category",
+    "imageDir": "images/food",
+    "order": 1
+  },
+  {
+    "id": "gift",
+    "label": "GIFT",
+    "description": "Sample gift category",
+    "imageDir": "images/gift",
+    "order": 2
+  }
+]

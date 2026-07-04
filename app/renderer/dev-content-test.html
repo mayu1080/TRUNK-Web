@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>TRUNK content layer test</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; background: #111; color: #eee; }
+    h1 { font-size: 18px; }
+    pre { background: #222; padding: 12px; overflow: auto; max-height: 70vh; }
+    .warn { color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <h1>Content layer verification (not PRODUCT_LIST UI)</h1>
+  <p>preload API 経由の assetIndex 読み込み確認用。画面遷移・LIST描画は含みません。</p>
+  <pre id="output">loading...</pre>
+  <script>
+    async function run() {
+      const out = document.getElementById('output');
+      try {
+        const config = await window.trunkApi.getConfig();
+        const index = await window.trunkApi.getAssetIndex();
+        const sampleUrl = index.listImages[0]
+          ? await window.trunkApi.getContentFileUrl(index.listImages[0].relativePath)
+          : null;
+        await window.trunkApi.logEvent({ level: 'info', message: 'dev-content-test loaded', context: { listCount: index.listImages.length } });
+        out.textContent = JSON.stringify({ config, listImageCount: index.listImages.length, categories: index.categories.length, products: index.products.length, warnings: index.warnings, sampleUrl }, null, 2);
+        if (index.warnings.length) {
+          out.classList.add('warn');
+        }
+      } catch (e) {
+        out.textContent = String(e);
+      }
+    }
+    run();
+  </script>
+</body>
+</html>

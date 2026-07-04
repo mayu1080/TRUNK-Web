@@ -3,7 +3,18 @@
 ## 概要
 
 4台のタッチモニター向け探索体験（B案：探索デザイン重視型）の**納品用実装**リポジトリです。
-本リポジトリは仕様・設計ドキュメントを中心とし、実装コードはこれから追加されます。
+本リポジトリは仕様・設計ドキュメントを中心とし、**Electron + Web** による Windows アプリ実装を Phase 1 以降で追加します。
+
+## ランタイム方針（確定）
+
+| 項目 | 内容 |
+|------|------|
+| UI | Web 技術 |
+| シェル | Electron（Windows `.exe`） |
+| コンテンツ | 実行ファイル横の外部 `content/`（ビルドに含めない） |
+| MVP | サーバー・DB 不要 |
+
+詳細は `docs/architecture.md` / `docs/content-schema.md` / `app/README.md` を参照。
 
 ## 正（Source of Truth）
 
@@ -80,7 +91,8 @@
 |----------|------|
 | `docs/handover.md` | 引き継ぎ・受入チェックリスト |
 | `docs/open-questions.example.md` | 未決事項テンプレ（Git 管理） |
-| `docs/architecture.md` | 実施設計（実装と並行して更新） |
+| `docs/architecture.md` | 実施設計（Electron / content / 責務分担） |
+| `docs/content-schema.md` | 外部 `content/` JSON スキーマ |
 | `docs/security.md` | セキュリティ設計（実装と並行して更新） |
 
 ### ローカル専用ファイル（Git 管理外）

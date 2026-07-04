@@ -173,5 +173,17 @@
       "description": "1台のみ TOP にいる状態からの操作で他台を同期させる挙動は禁止"
     }
   ],
-  "requirementsRef": "docs/function.xlsx"
+  "requirementsRef": "docs/function.xlsx",
+  "runtime": {
+    "platform": "Windows",
+    "shell": "Electron",
+    "ui": "Web",
+    "contentRoot": {
+      "development": "./content",
+      "production": "{execDir}/content",
+      "overrideEnv": "TRUNK_CONTENT_ROOT"
+    },
+    "contentSchema": "docs/content-schema.md",
+    "architectureRef": "docs/architecture.md"
+  }
 }

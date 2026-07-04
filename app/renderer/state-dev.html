@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>TRUNK state dev</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 12px;
+      background: #1a1a1a;
+      color: #eee;
+      font-size: 13px;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .monitor-badge {
+      background: #333;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .trunk-logo {
+      opacity: 0.6;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      pointer-events: none;
+      user-select: none;
+    }
+    .screen {
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 10px;
+      min-height: 180px;
+      background: #222;
+    }
+    .screen.TOP { background: #0f172a; }
+    .screen.ANIMATION { background: #1e1b4b; }
+    .screen.PRODUCT_LIST { background: #111; }
+    .screen.IMAGE_ZOOM { background: #111; }
+    .screen.PRODUCT_DETAIL { background: #f5f5f5; color: #111; }
+
+    .state-line { margin: 4px 0; font-family: monospace; }
+    .idle-line { color: #93c5fd; font-size: 11px; }
+    .actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      background: #374151;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button:hover { background: #4b5563; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .overlay {
+      position: relative;
+      margin-top: 8px;
+      padding: 12px;
+      background: #fff;
+      color: #111;
+      border-radius: 4px;
+    }
+    .drawer {
+      margin-top: 8px;
+      padding: 8px;
+      border-left: 3px solid #fbbf24;
+      background: #1f2937;
+    }
+    .hint { font-size: 11px; color: #9ca3af; margin-top: 8px; }
+    .error { color: #f87171; font-size: 11px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="monitor-badge" id="monitorLabel">Monitor ?</span>
+    <span class="trunk-logo" id="trunkLogo" aria-hidden="true">TRUNK</span>
+  </div>
+
+  <div class="screen TOP" id="screenRoot">
+    <div class="state-line">screenState: <strong id="screenState">—</strong></div>
+    <div class="state-line">uiState.categoryDrawer: <strong id="drawerState">—</strong></div>
+    <div class="state-line idle-line" id="idleLine">idle: —</div>
+    <div class="state-line" id="selectionLine" hidden></div>
+    <div id="screenBody"></div>
+    <div class="actions" id="actions"></div>
+    <div class="error" id="error"></div>
+  </div>
+  <p class="hint">Phase #3/#4 状態遷移 + 無操作スリープテスト UI（PRODUCT_LIST 描画は含みません）</p>
+
+  <script src="idle-timer.js"></script>
+  <script>
+    /** @type {number | null} */
+    let animationTimer = null;
+    /** @type {import('../shared/types').Category[]} */
+    let categories = [];
+    /** @type {import('../shared/types').MonitorState | null} */
+    let currentState = null;
+    /** @type {import('../shared/types').AppConfig | null} */
+    let appConfig = null;
+    /** @type {ReturnType<typeof window.TrunkIdleTimer.setupIdleTimer> | null} */
+    let idleTimer = null;
+
+    async function init() {
+      appConfig = await window.trunkApi.getConfig();
+      document.getElementById('monitorLabel').textContent =
+        `Monitor ${appConfig.monitorId} / ${appConfig.monitorCount}`;
+      document.getElementById('idleLine').textContent =
+        `idle timeout: ${appConfig.idleTimeoutSeconds}s (${appConfig.idleTimeoutSource})`;
+
+      categories = await window.trunkApi.getCategories();
+      currentState = await window.trunkApi.getState();
+
+      idleTimer = window.TrunkIdleTimer.setupIdleTimer({
+        getTimeoutSeconds: () => appConfig.idleTimeoutSeconds,
+        getScreenState: () => currentState?.screenState ?? 'TOP',
+        dispatch: (action) => window.trunkApi.dispatch(action),
+        onCountdown: (remaining) => {
+          const el = document.getElementById('idleLine');
+          if (remaining === null) {
+            el.textContent = `idle timeout: ${appConfig.idleTimeoutSeconds}s (${appConfig.idleTimeoutSource})`;
+            return;
+          }
+          el.textContent = `idle: ${remaining}s / ${appConfig.idleTimeoutSeconds}s (${appConfig.idleTimeoutSource})`;
+        },
+      });
+
+      render(currentState);
+      window.trunkApi.onStateChanged((next) => {
+        currentState = next;
+        render(next);
+        idleTimer.onStateChanged();
+      });
+    }
+
+    function render(state) {
+      currentState = state;
+      const root = document.getElementById('screenRoot');
+      root.className = 'screen ' + state.screenState;
+      document.getElementById('screenState').textContent = state.screenState;
+      document.getElementById('drawerState').textContent = state.uiState.categoryDrawer;
+      document.getElementById('error').textContent = '';
+
+      const sel = document.getElementById('selectionLine');
+      if (state.selectedCategoryId || state.selectedListImageId) {
+        sel.hidden = false;
+        sel.textContent = [
+          state.selectedListImageId ? `image: ${state.selectedListImageId}` : '',
+          state.selectedCategoryId ? `category: ${state.selectedCategoryId}` : '',
+        ].filter(Boolean).join(' | ');
+      } else {
+        sel.hidden = true;
+      }
+
+      document.getElementById('screenBody').innerHTML = bodyFor(state);
+      document.getElementById('actions').innerHTML = '';
+      actionsFor(state).forEach(({ label, action, disabled }) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        btn.disabled = !!disabled;
+        btn.addEventListener('click', () => dispatch(action));
+        document.getElementById('actions').appendChild(btn);
+      });
+
+      if (animationTimer) {
+        clearTimeout(animationTimer);
+        animationTimer = null;
+      }
+      if (state.screenState === 'ANIMATION') {
+        animationTimer = setTimeout(() => {
+          dispatch({ type: 'ANIMATION_COMPLETE' });
+        }, 1500);
+      }
+    }
+
+    function bodyFor(state) {
+      switch (state.screenState) {
+        case 'TOP':
+          return '<p>スリープ画面（仮）。有効タップ領域をシミュレート。</p>';
+        case 'ANIMATION':
+          return '<p>アニメーション placeholder（1.5秒後に自動遷移）</p>';
+        case 'PRODUCT_LIST':
+          return '<p>探索画面 placeholder（LIST描画なし）</p>' +
+            (state.uiState.categoryDrawer === 'open'
+              ? '<div class="drawer"><p>categoryDrawer: open</p><p>カテゴリ選択 → PRODUCT_DETAIL</p></div>'
+              : '');
+        case 'IMAGE_ZOOM':
+          return '<div class="overlay"><p>IMAGE_ZOOM overlay（仮）</p><p>× → PRODUCT_LIST</p></div>';
+        case 'PRODUCT_DETAIL':
+          return '<p>PRODUCT_DETAIL placeholder</p><p>category: ' + (state.selectedCategoryId || '—') + '</p>';
+        default:
+          return '';
+      }
+    }
+
+    function actionsFor(state) {
+      /** @type {{ label: string, action: import('../shared/types').StateAction, disabled?: boolean }[]} */
+      const list = [];
+      switch (state.screenState) {
+        case 'TOP':
+          list.push({ label: '有効タップ → ANIMATION', action: { type: 'TOP_ENTRY_TAP' } });
+          break;
+        case 'ANIMATION':
+          list.push({ label: 'アニメーション終了 → PRODUCT_LIST', action: { type: 'ANIMATION_COMPLETE' } });
+          break;
+        case 'PRODUCT_LIST':
+          if (state.uiState.categoryDrawer === 'closed') {
+            list.push({ label: '画像タップ → IMAGE_ZOOM', action: { type: 'LIST_IMAGE_TAP', imageId: 'test-image' } });
+            list.push({ label: '☰ → categoryDrawer open', action: { type: 'CATEGORY_DRAWER_OPEN' } });
+          } else {
+            list.push({ label: '× → categoryDrawer closed', action: { type: 'CATEGORY_DRAWER_CLOSE' } });
+            categories.forEach((c) => {
+              list.push({
+                label: `カテゴリ: ${c.label} → PRODUCT_DETAIL`,
+                action: { type: 'CATEGORY_SELECT', categoryId: c.id },
+              });
+            });
+          }
+          break;
+        case 'IMAGE_ZOOM':
+          list.push({ label: '× → PRODUCT_LIST', action: { type: 'IMAGE_ZOOM_CLOSE' } });
+          break;
+        case 'PRODUCT_DETAIL':
+          list.push({ label: '× → PRODUCT_LIST', action: { type: 'PRODUCT_DETAIL_CLOSE' } });
+          break;
+      }
+      return list;
+    }
+
+    async function dispatch(action) {
+      try {
+        await window.trunkApi.dispatch(action);
+        idleTimer?.reset();
+      } catch (e) {
+        document.getElementById('error').textContent = String(e.message || e);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

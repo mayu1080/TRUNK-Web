@@ -1,0 +1,22 @@
+[
+  {
+    "id": "food_001",
+    "categoryId": "food",
+    "title": "Sample Product A",
+    "subtitle": "Placeholder subtitle",
+    "description": "Sample product description for development.",
+    "images": ["images/food/sample_food_01.svg"],
+    "thumbnail": "thumbs/food/sample_food_01.svg",
+    "tags": ["food", "sample"]
+  },
+  {
+    "id": "gift_001",
+    "categoryId": "gift",
+    "title": "Sample Product B",
+    "subtitle": "Placeholder subtitle",
+    "description": "Sample product description for development.",
+    "images": ["images/gift/sample_gift_01.svg"],
+    "thumbnail": "thumbs/gift/sample_gift_01.svg",
+    "tags": ["gift", "sample"]
+  }
+]

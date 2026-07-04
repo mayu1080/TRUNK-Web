@@ -171,6 +171,6 @@ flowchart TD
 
 - グローバル状態は `screenState`（上表の状態ID）を正とする
 - `PRODUCT_LIST` では `categoryDrawer` を併用する（CATEGORY は screenState にしない）
+- `PRODUCT_LIST` の画像は外部 `content/` の `assetIndex` から取得（起動時生成。描画中スキャン禁止）
 - `PRODUCT_DETAIL` では `scrollSection` を保持する
-- 4面同期の配信方式は `docs/architecture.md` を参照
-- 機能挙動の最終確認は `Design_Check0622.mp4` を参照
+- ランタイム構成は `docs/architecture.md` を参照
