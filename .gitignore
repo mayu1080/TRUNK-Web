@@ -46,6 +46,10 @@ coverage/
 *.mp4
 !docs/Design_Check0622.mp4
 
+# === Client images under content/ (local only; keep repo samples) ===
+content/images/**/*
+!content/images/**/sample_*.svg
+
 # === Docs: temporary artifacts ===
 docs/_xlsx_tmp/
 docs/*.zip
@@ -54,5 +58,6 @@ docs/*.extracted.json
 # === Docs: local-only (not uploaded to GitHub) ===
 docs/open-questions.md
 
-# === PRODUCT_LIST demo workspace (local-only) ===
-LIST_demo/
+# === PRODUCT_LIST demo workspace ===
+LIST_demo/**/node_modules/
+LIST_demo/**/dist/
