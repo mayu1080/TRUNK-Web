@@ -12,11 +12,16 @@
 
 | 項目 | 内容 |
 |------|------|
-| screenState | `TOP`, `ANIMATION`, `PRODUCT_LIST`, `PRODUCT_DETAIL`, `IMAGE_ZOOM` |
+| 機能挙動の正 | `Design_Check0622.mp4`（画質は対象外） |
+| screenState | `TOP`, `ANIMATION`, `PRODUCT_LIST`, `IMAGE_ZOOM`, `PRODUCT_DETAIL` |
 | CATEGORY | 独立 screenState ではない。`PRODUCT_LIST` + `categoryDrawer: open/closed` |
-| IMAGE_ZOOM | overlay on `PRODUCT_DETAIL`。`screenState` 独立可。×は常に `PRODUCT_LIST` |
+| IMAGE_ZOOM | `PRODUCT_LIST` 上の白 overlay。`screenState` 独立可。×は常に `PRODUCT_LIST` |
+| IMAGE_ZOOM トリガー | `PRODUCT_LIST` 画像タップ |
+| TRUNK ロゴ | 装飾のみ。タップハンドラなし |
 | 4面同期 | `TOP` → `ANIMATION` → `PRODUCT_LIST` まで |
+| TOP → ANIMATION 条件 | **4台すべて `TOP` のときのみ** |
 | PRODUCT_LIST 以降 | 各モニター操作は独立 |
+| 無操作タイムアウト | 10分。当該モニターのみ `TOP`。タップ・スワイプ・ピンチ・スクロールでカウント再スタート |
 
 ## 3. 論点（外注が設計すべき項目）
 
@@ -65,9 +70,8 @@
 
 | 未決 | 参照 |
 |------|------|
-| 無操作 TOP 復帰 | `open-questions.md` Q1 |
-| 同期技術方式 | `open-questions.md` Q2 |
-| HW / OS | `open-questions.md` Q3 |
+| 同期技術方式 | `open-questions.md` Q1 |
+| HW / OS | `open-questions.md` Q2 |
 
 ## 5. 受入に接続する設計成果物
 

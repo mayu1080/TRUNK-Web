@@ -9,11 +9,12 @@
 
 矛盾時は以下の優先順位で解釈してください。
 
-1. `docs/function.xlsx`（要件の最新版）
-2. `docs/screen-flow.json`（状態ID・遷移・同期ルール）
-3. `docs/screen-flow.md`（人間向け説明）
-4. `docs/screen-flow.mmd` / `docs/screen-flow.png`（図）
-5. `docs/handover.md`（引き継ぎ・受入）
+1. `docs/Design_Check0622.mp4`（**機能挙動の正**。画質は対象外）
+2. `docs/function.xlsx`（要件の最新版）
+3. `docs/screen-flow.json`（状態ID・遷移・同期ルール）
+4. `docs/screen-flow.md`（人間向け説明）
+5. `docs/screen-flow.mmd` / `docs/screen-flow.png`（図）
+6. `docs/handover.md`（引き継ぎ・受入）
 
 ## 画面状態ID（実装・ドキュメント共通）
 
@@ -21,9 +22,9 @@
 |--------|------|
 | `TOP` | スリープ画面（4面） |
 | `ANIMATION` | 遷移前アニメーション（4面同期） |
-| `PRODUCT_LIST` | 探索画面（商品探索一覧） |
-| `PRODUCT_DETAIL` | 詳細画面 |
-| `IMAGE_ZOOM` | 画像拡大（overlay UI、状態は独立） |
+| `PRODUCT_LIST` | 暗色探索画面（浮遊画像） |
+| `IMAGE_ZOOM` | 探索背景上の白 overlay/card（状態は独立） |
+| `PRODUCT_DETAIL` | カテゴリ選択後の白い詳細/カルーセル |
 
 ### CATEGORY の扱い
 
@@ -33,16 +34,30 @@
 
 ### IMAGE_ZOOM の扱い
 
-- `PRODUCT_DETAIL` 上に overlay 表示（見た目はモーダル）
+- `PRODUCT_LIST`（暗色探索背景）上に白い overlay/card として表示
+- トリガーは **PRODUCT_LIST 上の画像タップ**
 - `screenState: IMAGE_ZOOM` として独立管理してよい
 - ×押下時は直前画面へ戻らず、**常に `PRODUCT_LIST` へ遷移**
+
+### TRUNK ロゴ
+
+- 装飾画像のみ。**タップ/クリックハンドラを付けない**
+- ロゴタップによる `TOP` 復帰は**廃止**
 
 ## 4面同期（確定）
 
 | 範囲 | 挙動 |
 |------|------|
-| `TOP` → `ANIMATION` → `PRODUCT_LIST` | 4面同期必須 |
+| `TOP` → `ANIMATION` → `PRODUCT_LIST` | 4面同期 |
+| `TOP` → `ANIMATION` の条件 | **4台すべてが `TOP` のときのみ** |
+| 1台のみ `TOP` | 無操作タイムアウト等で当該台だけ `TOP` の場合、再開は他台を中断しない |
 | `PRODUCT_LIST` 以降 | 各モニター操作は独立（同時に別ユーザーが探索可能） |
+
+## 無操作タイムアウト（確定）
+
+- **10分**無操作で、**当該モニターのみ** `TOP` へ復帰
+- **タップ・スワイプ・ピンチ・スクロール**は操作とみなし、タイムアウトカウントを再スタート
+- 他モニターには影響しない
 
 ## 廃止仕様・Git履歴参照禁止
 
@@ -53,6 +68,8 @@
 | `FESTIVAL`（祝祭演出） | `function.xlsx` から削除済み |
 | 旧 `TOP_1`〜`TOP_4` / `EXPLORE` / `DETAIL` 等の独立状態 | 現行ID体系に統一済み |
 | `CATEGORY` を独立 screenState とする設計 | `categoryDrawer` に統一 |
+| TRUNK ロゴタップ → `TOP` | **廃止**（装飾のみ） |
+| `PRODUCT_DETAIL` から `IMAGE_ZOOM` | **廃止**（`PRODUCT_LIST` 画像タップが正） |
 
 **Git 履歴（旧コミットの `index.html` / `setup/` 等）を参照して仕様を復元しないでください。**
 仕様根拠は現行 `docs/` のみとします。
