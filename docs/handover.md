@@ -63,7 +63,8 @@ TRUNK_delivery/
     ├── screen-flow.mmd   # Mermaid ソース
     ├── screen-flow.png   # 画面遷移図（screen-flow.mmd から生成）
     ├── handover.md       # 本書
-    ├── open-questions.md # 未決事項
+    ├── open-questions.example.md  # 未決事項テンプレ（Git 管理）
+    ├── open-questions.md       # 未決事項（ローカル専用・Git 管理外）
     ├── architecture.md   # 実施設計（草案）
     └── security.md       # セキュリティ設計（草案）
 ```
@@ -80,7 +81,8 @@ TRUNK_delivery/
 | `screen-flow.png` | 画面遷移図（PNG）。`screen-flow.mmd` を正として生成 |
 | `assets/.gitkeep` | 画像・動画の配置先プレースホルダ |
 | `README.md` | 外注向け入口・廃止仕様・同期範囲 |
-| `open-questions.md` | 未決事項一覧 |
+| `open-questions.example.md` | 未決事項テンプレ（Git 管理） |
+| `open-questions.md` | 未決事項作業用（**ローカル専用・Git 管理外**） |
 | `architecture.md` | 実施設計テンプレ |
 | `security.md` | セキュリティ設計テンプレ |
 
@@ -226,7 +228,7 @@ TRUNK_delivery/
 
 ## 7. 未確定・要確認事項
 
-詳細は `docs/open-questions.md` を参照。
+詳細はローカルの `docs/open-questions.md` を参照（Git 管理外）。テンプレは `docs/open-questions.example.md`。
 
 | # | 項目 | 現状 |
 |---|------|------|

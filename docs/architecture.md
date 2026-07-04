@@ -1,7 +1,7 @@
 # architecture.md（実施設計・草案）
 
 > 本書は外注先が実施設計を作成・更新するためのテンプレートです。
-> 確定事項は `docs/screen-flow.json` / `README.md` を正とし、未決は `docs/open-questions.md` を参照してください。
+> 確定事項は `docs/screen-flow.json` / `README.md` を正とし、未決はローカルの `docs/open-questions.md`（Git 管理外）を参照してください。
 
 ## 1. 目的・スコープ
 
@@ -70,8 +70,8 @@
 
 | 未決 | 参照 |
 |------|------|
-| 同期技術方式 | `open-questions.md` Q1 |
-| HW / OS | `open-questions.md` Q2 |
+| 同期技術方式 | ローカル `open-questions.md` Q1 |
+| HW / OS | ローカル `open-questions.md` Q2 |
 
 ## 5. 受入に接続する設計成果物
 

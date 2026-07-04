@@ -79,9 +79,15 @@
 | ファイル | 用途 |
 |----------|------|
 | `docs/handover.md` | 引き継ぎ・受入チェックリスト |
-| `docs/open-questions.md` | 未決事項 |
-| `docs/architecture.md` | 実施設計（外注作成・更新） |
-| `docs/security.md` | セキュリティ設計（外注作成・更新） |
+| `docs/open-questions.example.md` | 未決事項テンプレ（Git 管理） |
+| `docs/architecture.md` | 実施設計（実装と並行して更新） |
+| `docs/security.md` | セキュリティ設計（実装と並行して更新） |
+
+### ローカル専用ファイル（Git 管理外）
+
+| ファイル | 用途 |
+|----------|------|
+| `docs/open-questions.md` | 未決事項の作業用。**GitHub にはアップロードしない**。初回は `open-questions.example.md` をコピー |
 
 ## 外注向け成果物
 
@@ -90,7 +96,8 @@
 
 ## 未決事項
 
-`docs/open-questions.md` を参照し、回答前に推測で実装しないでください。
+ローカル作業用の `docs/open-questions.md` を参照してください（**Git 管理外**）。
+リポジトリにはテンプレ `docs/open-questions.example.md` のみ含まれます。回答前に推測で実装しないでください。
 
 ## コミット禁止物
 

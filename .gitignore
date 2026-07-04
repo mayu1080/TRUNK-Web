@@ -51,3 +51,5 @@ docs/_xlsx_tmp/
 docs/*.zip
 docs/*.extracted.json
 
+# === Docs: local-only (not uploaded to GitHub) ===
+docs/open-questions.md
