@@ -35,6 +35,8 @@ import {
 import type { ContentBounds } from './worldBounds';
 import { computeContentBounds } from './worldBounds';
 import type { DemoListImage, ExploreView } from './types';
+import { MOTION_CONFIG } from '../motionConfig';
+import { computeIdleMotion, initIdleParams } from './idleMotion';
 
 export interface PlacedImage {
   sprite: Sprite;
@@ -47,6 +49,12 @@ export interface PlacedImage {
   baseScale: number;
   floatPhase: number;
   floatSpeed: number;
+  idleIntensity: number;
+  idleSpeed: number;
+  idlePhaseX: number;
+  idlePhaseY: number;
+  idlePhaseScale: number;
+  idlePhaseRot: number;
   reactionScale: number;
   reactionOffsetX: number;
   reactionOffsetY: number;
@@ -233,6 +241,12 @@ export async function buildExploreScene(
       baseScale,
       floatPhase: rand() * Math.PI * 2,
       floatSpeed: 0.7 + rand() * 0.6,
+      idleIntensity: 0,
+      idleSpeed: 0,
+      idlePhaseX: 0,
+      idlePhaseY: 0,
+      idlePhaseScale: 0,
+      idlePhaseRot: 0,
       reactionScale: 1,
       reactionOffsetX: 0,
       reactionOffsetY: 0,
@@ -241,6 +255,8 @@ export async function buildExploreScene(
       greyFilter,
       renderOrder,
     });
+    const placedItem = placed[placed.length - 1]!;
+    initIdleParams(placedItem, rand, MOTION_CONFIG);
     allMetrics.push(display);
   }
 
@@ -277,30 +293,39 @@ export function applyExploreView(
 ): void {
   worldTransform(scene, view, config);
 
-  if (config.float.enabled) {
-    for (const item of scene.images) {
-      const fy =
-        Math.sin(time * config.float.speed * item.floatSpeed + item.floatPhase) *
-        config.float.amplitudeY;
-      const fr =
-        Math.sin(time * config.float.speed * 0.7 + item.floatPhase) *
-        config.float.amplitudeRot;
-      item.sprite.y = item.baseY + fy + item.reactionOffsetY;
-      item.sprite.rotation = fr;
-    }
-  } else {
-    for (const item of scene.images) {
-      item.sprite.y = item.baseY + item.reactionOffsetY;
-      item.sprite.rotation = 0;
-    }
-  }
+  const useIdle = MOTION_CONFIG.idle.enabled;
 
   for (const item of scene.images) {
-    const totalScale = item.baseScale * item.reactionScale * item.tapFocusScale;
+    let idleX = 0;
+    let idleY = 0;
+    let idleScaleMul = 1;
+    let idleRot = 0;
+
+    if (useIdle) {
+      const idle = computeIdleMotion(item, time, MOTION_CONFIG);
+      idleX = idle.offsetX;
+      idleY = idle.offsetY;
+      idleScaleMul = idle.scaleMul;
+      idleRot = idle.rotation;
+    } else if (config.float.enabled) {
+      idleY =
+        Math.sin(time * config.float.speed * item.floatSpeed + item.floatPhase) *
+        config.float.amplitudeY;
+      idleRot =
+        Math.sin(time * config.float.speed * 0.7 + item.floatPhase) *
+        config.float.amplitudeRot;
+    }
+
+    item.sprite.x = item.baseX + item.reactionOffsetX + idleX;
+    item.sprite.y = item.baseY + item.reactionOffsetY + idleY;
+    item.sprite.rotation = idleRot;
+
+    const totalScale =
+      item.baseScale * item.reactionScale * item.tapFocusScale * idleScaleMul;
     item.sprite.scale.set(totalScale);
-    item.sprite.x = item.baseX + item.reactionOffsetX;
-    if (!config.float.enabled) {
-      item.sprite.y = item.baseY + item.reactionOffsetY;
+
+    if (item.tapFocusBright !== 1) {
+      applyImageTone(item.greyFilter, config, item.tapFocusBright);
     }
   }
 }

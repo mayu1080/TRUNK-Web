@@ -244,14 +244,21 @@ body,
   touch-action: manipulation;
 }
 
-.debug-panel {
+.debug-panels {
   position: fixed;
   top: 44px;
   left: 8px;
   z-index: 32;
-  max-width: min(400px, 92vw);
-  max-height: min(520px, 58vh);
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(440px, 94vw);
+  pointer-events: none;
+}
+
+.debug-panel {
+  width: 100%;
+  margin: 0;
   padding: 10px 12px;
   background: rgba(0, 0, 0, 0.82);
   border: 1px solid #333;
@@ -260,7 +267,7 @@ body,
   font-size: 10px;
   line-height: 1.45;
   white-space: pre-wrap;
-  pointer-events: none;
+  overflow: visible;
 }
 
 .hit-test-debug-layer {
@@ -370,8 +377,8 @@ body,
   align-items: center;
   justify-content: center;
   padding: clamp(20px, 5vw, 48px);
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, var(--zoom-scrim-max, 0.55));
+  backdrop-filter: blur(var(--zoom-scrim-blur, 14px));
   pointer-events: auto;
 }
 

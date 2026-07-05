@@ -20,13 +20,16 @@ import {
 } from './hitTestDiagnostics';
 import { centerInitialView, createPixiApp, getInitTimeMs } from './pixiApp';
 import {
-  animateTapFocus,
   applyTouchReaction,
   clearTouchReaction,
   createTouchReactionState,
+  resetTapFocus,
+  startTapFocus,
   updateTouchReactionFromEvent,
 } from './touchReaction';
 import { clampExploreView, centerViewOnContent } from './worldBounds';
+import { computeIdleMotion } from './idleMotion';
+import { MOTION_CONFIG } from '../motionConfig';
 import type { AssetLoadResult, DebugStats, ExploreView, HitTestDebugStats, SelectedImageDebug } from './types';
 import type { VisualConfig, VisualPresetId } from '../visualConfig';
 import { DEFAULT_TONE_PRESET, getVisualConfig, type TonePresetId } from '../visualConfig';
@@ -263,11 +266,11 @@ export class ExploreController {
     }
   }
 
-  private async handleTap(
+  private handleTap(
     rx: number,
     ry: number,
     _probe: TapGestureProbe,
-  ): Promise<void> {
+  ): void {
     if (!this.interactionEnabled || this.tapLocked) return;
     if (performance.now() < this.zoomCooldownUntil) return;
 
@@ -293,8 +296,8 @@ export class ExploreController {
     };
 
     try {
-      await animateTapFocus(hit, this.config);
       if (this.destroyed) return;
+      startTapFocus(hit, this.config);
       this.callbacks.onImageTap({ id: hit.meta.id, url: hit.meta.url });
     } catch (err) {
       console.error('[DD] handleTap failed', err);
@@ -356,6 +359,10 @@ export class ExploreController {
   }
 
   onZoomClosed(): void {
+    if (this.scene && this.selectedImageId) {
+      const item = this.scene.images.find((i) => i.meta.id === this.selectedImageId);
+      if (item) resetTapFocus(item, this.config);
+    }
     this.selectedImageId = null;
     this.selectedImageDebug = null;
     this.tapLocked = false;
@@ -366,6 +373,11 @@ export class ExploreController {
   private emitStats(): void {
     const fps = this.fpsCounter.tick();
     const cfg = this.config;
+    const time = performance.now() / 1000;
+    const sampleItem = this.scene?.images[0];
+    const idleSample = sampleItem
+      ? computeIdleMotion(sampleItem, time, MOTION_CONFIG)
+      : null;
     const stats: DebugStats = {
       demoId: 'DD',
       fps,
@@ -380,6 +392,9 @@ export class ExploreController {
       parallaxStrength: cfg.depth.parallaxStrength,
       floatEnabled: cfg.float.enabled,
       floatAmplitude: cfg.float.amplitudeY,
+      idleMotionEnabled: MOTION_CONFIG.idle.enabled,
+      idleSampleY: idleSample?.offsetY ?? 0,
+      idleSampleRotDeg: idleSample ? (idleSample.rotation * 180) / Math.PI : 0,
       touchReactionEnabled: cfg.touchReaction.enabled,
       touchReactionStrength: cfg.touchReaction.strength,
       overlayState: this.overlayState,

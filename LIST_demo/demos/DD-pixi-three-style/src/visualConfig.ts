@@ -168,7 +168,7 @@ export const VISUAL_PRESETS: Record<VisualPresetId, VisualConfig> = {
       alphaRange: [0.84, 1],
     },
     float: {
-      enabled: true,
+      enabled: false,
       amplitudeY: 4.5,
       amplitudeRot: 0.005,
       speed: 0.2,

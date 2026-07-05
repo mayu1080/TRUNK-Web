@@ -1,4 +1,5 @@
 import type { DebugStats } from '../pixi/types';
+import { IMAGE_ZOOM_CARD_DELAY_FRAMES, MOTION_CONFIG } from '../motionConfig';
 
 interface DebugPanelProps {
   stats: DebugStats | null;
@@ -6,26 +7,56 @@ interface DebugPanelProps {
   lastAction: string;
 }
 
+function DebugPanelBlock({ lines }: { lines: string[] }) {
+  return <pre className="debug-panel">{lines.join('\n')}</pre>;
+}
+
 export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
   if (!stats) {
-    return <pre className="debug-panel">=== DD: loading… ===</pre>;
+    return (
+      <div className="debug-panels">
+        <DebugPanelBlock lines={['=== DD: loading… ===']} />
+      </div>
+    );
   }
 
-  const lines = [
+  const zoom = MOTION_CONFIG.imageZoomOpen;
+  const drawer = MOTION_CONFIG.drawer;
+  const tap = MOTION_CONFIG.tapReaction;
+  const zoomOpenTotalMs = zoom.cardDelayMs + zoom.cardFadeMs;
+  const zoomCloseMs = Math.round(zoom.cardFadeMs * 0.85);
+
+  const configLines = [
     '=== DD: Pixi + Three風 + DOM ===',
     'url: http://localhost:5175',
     `visual preset: ${stats.visualPreset}`,
     `tone preset: ${stats.tonePreset}  bright: ${stats.imageBrightness}  contrast: ${stats.imageContrast}`,
     `noise: ${stats.noiseEnabled ? 'ON' : 'OFF'}  opacity: ${stats.noiseOpacity}`,
     `depth: ${stats.depthEnabled ? 'ON' : 'OFF'}  layers: ${stats.depthLayers}  parallax: ${stats.parallaxStrength}`,
-    `float: ${stats.floatEnabled ? 'ON' : 'OFF'}  amp: ${stats.floatAmplitude}`,
+    `float: ${stats.floatEnabled ? 'ON (legacy)' : 'OFF'}  idle: ${stats.idleMotionEnabled ? 'ON' : 'OFF'}`,
+    `idle sample: dy=${stats.idleSampleY.toFixed(2)} rot=${stats.idleSampleRotDeg.toFixed(3)}°`,
     `touch reaction: ${stats.touchReactionEnabled ? 'ON' : 'OFF'}  str: ${stats.touchReactionStrength}`,
+    '',
+    '--- IMAGE_ZOOM timeline ---',
+    `tap bright: ${tap.riseMs}ms${tap.holdMs > 0 ? ` + hold ${tap.holdMs}ms` : ''} (parallel, scale ${tap.scaleTo === 1 ? 'off' : tap.scaleTo})`,
+    `scrim fade: ${zoom.scrimFadeMs}ms  opacity max: ${zoom.scrimOpacityMax}  blur: ${zoom.scrimBlurPx}px`,
+    `card delay: ${zoom.cardDelayMs}ms (${IMAGE_ZOOM_CARD_DELAY_FRAMES} frames @60fps)  card fade: ${zoom.cardFadeMs}ms`,
+    `easing: easeInOutCubic [${zoom.cardEasing.join(', ')}]`,
+    `open total: ~${zoomOpenTotalMs}ms (delay+card)  close: ~${zoomCloseMs}ms`,
+    '',
+    '--- drawer timeline ---',
+    `panel open: ${drawer.openMs}ms  close: ${drawer.closeMs}ms  slide from: ${drawer.translateFromX}px`,
+    `scrim fade: ${drawer.scrimFadeMs}ms`,
+    `easing: easeInQuad (gentle) [${drawer.easing.join(', ')}]`,
     '',
     `overlay: ${stats.overlayState}  drawer: ${stats.drawerOpen ? 'OPEN' : 'closed'}`,
     `pointer blocked: ${stats.pointerBlocked}  interaction: ${stats.interactionEnabled ? 'ON' : 'OFF'}`,
     `tap locked: ${stats.tapLocked}  hit debug: ${stats.hitTestDebugEnabled ? 'ON' : 'OFF'}`,
     `last action: ${lastAction}`,
-    '',
+  ];
+
+  const runtimeLines = [
+    '--- runtime ---',
     `FPS: ${stats.fps.toFixed(1)}  canvas: ${stats.canvasCount}  renderer: ${stats.rendererType}`,
     `images: ${stats.displayedImageCount} (real ${stats.realImageCount})  tex: ${stats.texturesLoaded}`,
     `texMem(est): ${stats.textureMemoryMb.toFixed(2)} MB  drawCalls(est): ${stats.drawCallEstimate}`,
@@ -35,7 +66,7 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
 
   if (stats.selectedImage) {
     const s = stats.selectedImage;
-    lines.push(
+    runtimeLines.push(
       `selected depth: ${s.depth.toFixed(2)}  preset: ${s.preset}`,
       `  displayed: ${Math.round(s.displayedWidth)}×${Math.round(s.displayedHeight)}`,
     );
@@ -43,7 +74,7 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
 
   const ht = stats.hitTestDebug;
   if (ht) {
-    lines.push(
+    runtimeLines.push(
       '',
       '--- hit test ---',
       `last pointer: client (${ht.clientUpX.toFixed(0)}, ${ht.clientUpY.toFixed(0)})`,
@@ -58,29 +89,34 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
       `hit candidates: ${ht.hitCandidateCount}`,
     );
     for (const [i, c] of ht.hitCandidates.slice(0, 5).entries()) {
-      lines.push(
+      runtimeLines.push(
         `  ${i + 1}. ${c.imageId} d=${c.depth.toFixed(2)} ${c.layerId} z=${c.zIndex} ord=${c.renderOrder}`,
       );
     }
     if (ht.hitCandidateCount > 5) {
-      lines.push(`  … +${ht.hitCandidateCount - 5} more`);
+      runtimeLines.push(`  … +${ht.hitCandidateCount - 5} more`);
     }
-    lines.push(`chosen imageId: ${ht.chosenImageId ?? '(none)'}`);
+    runtimeLines.push(`chosen imageId: ${ht.chosenImageId ?? '(none)'}`);
     if (ht.chosenBounds) {
       const b = ht.chosenBounds;
-      lines.push(
+      runtimeLines.push(
         `chosen bounds: x=${b.x.toFixed(0)} y=${b.y.toFixed(0)} w=${b.w.toFixed(0)} h=${b.h.toFixed(0)}`,
       );
     }
     if (ht.chosenAtDownImageId && ht.chosenAtDownImageId !== ht.chosenImageId) {
-      lines.push(`down-position hit: ${ht.chosenAtDownImageId} (≠ up)`);
+      runtimeLines.push(`down-position hit: ${ht.chosenAtDownImageId} (≠ up)`);
     }
   }
 
   if (warnings.length > 0) {
-    lines.push('', '--- warnings ---');
-    for (const w of warnings.slice(0, 4)) lines.push(`⚠ ${w}`);
+    runtimeLines.push('', '--- warnings ---');
+    for (const w of warnings.slice(0, 4)) runtimeLines.push(`⚠ ${w}`);
   }
 
-  return <pre className="debug-panel">{lines.join('\n')}</pre>;
+  return (
+    <div className="debug-panels">
+      <DebugPanelBlock lines={configLines} />
+      <DebugPanelBlock lines={runtimeLines} />
+    </div>
+  );
 }

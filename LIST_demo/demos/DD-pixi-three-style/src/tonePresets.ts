@@ -17,7 +17,7 @@ export const TONE_PRESETS: Record<TonePresetId, TonePreset> = {
   'safe-soft-mono': {
     description: '今回の安全な柔らかいモノクロ（ややソフト）',
     brightness: 1.24,
-    contrast: 0.3,
+    contrast: 0.27,
   },
 };
 

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { DRAWER_MOTION, MOCK_CATEGORIES, SCRIM_MOTION } from '../motionConfig';
+import { DRAWER_MOTION, DRAWER_SCRIM_MOTION, MOCK_CATEGORIES } from '../motionConfig';
 
 interface CategoryDrawerProps {
   open: boolean;
@@ -16,13 +16,14 @@ export function CategoryDrawer({
   onClose,
   onSelectCategory,
 }: CategoryDrawerProps) {
-  const panelTransition = {
-    duration: DRAWER_MOTION.durationMs / 1000,
+  const panelTransition = (state: string) => ({
+    duration:
+      (state === 'exit' ? DRAWER_MOTION.closeMs : DRAWER_MOTION.durationMs) / 1000,
     ease: DRAWER_MOTION.easing,
-  };
+  });
   const scrimTransition = {
-    duration: SCRIM_MOTION.durationMs / 1000,
-    ease: SCRIM_MOTION.easing,
+    duration: DRAWER_SCRIM_MOTION.durationMs / 1000,
+    ease: DRAWER_SCRIM_MOTION.easing,
   };
 
   return (
@@ -34,9 +35,9 @@ export function CategoryDrawer({
               type="button"
               className="drawer-scrim"
               aria-label="Close menu"
-              initial={SCRIM_MOTION.initial}
-              animate={SCRIM_MOTION.animate}
-              exit={SCRIM_MOTION.exit}
+              initial={DRAWER_SCRIM_MOTION.initial}
+              animate={DRAWER_SCRIM_MOTION.animate}
+              exit={DRAWER_SCRIM_MOTION.exit}
               transition={scrimTransition}
               onClick={onClose}
             />

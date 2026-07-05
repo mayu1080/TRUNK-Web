@@ -72,6 +72,9 @@ export interface DebugStats {
   parallaxStrength: number;
   floatEnabled: boolean;
   floatAmplitude: number;
+  idleMotionEnabled: boolean;
+  idleSampleY: number;
+  idleSampleRotDeg: number;
   touchReactionEnabled: boolean;
   touchReactionStrength: number;
   overlayState: string;

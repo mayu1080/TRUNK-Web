@@ -1,4 +1,6 @@
+import { easeOutCubic, MOTION_CONFIG } from '../motionConfig';
 import type { PlacedImage } from './exploreScene';
+import { applyImageTone } from './exploreScene';
 import type { VisualConfig } from '../visualConfig';
 import { mapClientToRenderer } from './pointerCoords';
 
@@ -62,40 +64,63 @@ export function applyTouchReaction(
     const falloff = Math.max(0, 1 - dist / radius);
     const push = falloff * strength;
 
-    item.reactionScale = 1 + push * 0.12;
+    item.reactionScale = 1 + push * 0.08;
     if (state.dragging) {
-      item.reactionOffsetX += (dx * lag * push * 0.08 - item.reactionOffsetX) * 0.15;
-      item.reactionOffsetY += (dy * lag * push * 0.08 - item.reactionOffsetY) * 0.15;
+      item.reactionOffsetX += (dx * lag * push * 0.06 - item.reactionOffsetX) * 0.12;
+      item.reactionOffsetY += (dy * lag * push * 0.06 - item.reactionOffsetY) * 0.12;
     } else {
-      item.reactionOffsetX *= 0.85;
-      item.reactionOffsetY *= 0.85;
+      item.reactionOffsetX *= 0.88;
+      item.reactionOffsetY *= 0.88;
     }
     void time;
   }
 }
 
+/** タップ確定後: 選択画像を静かに明るく（scale なし・非ブロッキング） */
 export async function animateTapFocus(
   item: PlacedImage,
   config: VisualConfig,
 ): Promise<void> {
-  if (!config.tapFocus.enabled) return;
+  const tap = MOTION_CONFIG.tapReaction;
+  if (!tap.enabled) return;
 
-  const { scale, durationMs } = config.tapFocus;
+  const { riseMs, holdMs, scaleTo, brighten } = tap;
   const start = performance.now();
+  const totalMs = riseMs + holdMs;
 
   return new Promise((resolve) => {
     const tick = () => {
-      const t = Math.min((performance.now() - start) / durationMs, 1);
-      const ease = 1 - Math.pow(1 - t, 3);
-      item.tapFocusScale = 1 + (scale - 1) * Math.sin(ease * Math.PI);
-      if (t < 1) {
-        requestAnimationFrame(tick);
+      const elapsed = performance.now() - start;
+
+      if (elapsed < riseMs) {
+        const t = easeOutCubic(elapsed / riseMs);
+        item.tapFocusScale = 1 + (scaleTo - 1) * t;
+        item.tapFocusBright = 1 + brighten * t;
       } else {
-        item.tapFocusScale = 1;
-        item.tapFocusBright = 1;
-        resolve();
+        item.tapFocusScale = scaleTo;
+        item.tapFocusBright = 1 + brighten;
       }
+
+      applyImageTone(item.greyFilter, config, item.tapFocusBright);
+
+      if (elapsed >= totalMs) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   });
+}
+
+/** ZOOM 開始と並行 — await しない */
+export function startTapFocus(item: PlacedImage, config: VisualConfig): void {
+  void animateTapFocus(item, config);
+}
+
+/** ZOOM 閉じた後にタップ反応状態をリセット */
+export function resetTapFocus(item: PlacedImage, config: VisualConfig): void {
+  item.tapFocusScale = 1;
+  item.tapFocusBright = 1;
+  applyImageTone(item.greyFilter, config);
 }

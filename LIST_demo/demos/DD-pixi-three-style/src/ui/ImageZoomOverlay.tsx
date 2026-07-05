@@ -1,5 +1,6 @@
+import type { CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { IMAGE_ZOOM_MOTION, SCRIM_MOTION } from '../motionConfig';
+import { IMAGE_ZOOM_MOTION, MOTION_CONFIG } from '../motionConfig';
 import { resolveZoomContent } from './zoomContent';
 
 interface ImageZoomOverlayProps {
@@ -19,14 +20,25 @@ export function ImageZoomOverlay({
   onClose,
   reviewMode = true,
 }: ImageZoomOverlayProps) {
-  const cardTransition = {
-    duration: IMAGE_ZOOM_MOTION.durationMs / 1000,
-    ease: IMAGE_ZOOM_MOTION.easing,
+  const zoom = MOTION_CONFIG.imageZoomOpen;
+  const cardOpenTransition = {
+    duration: zoom.cardFadeMs / 1000,
+    delay: zoom.cardDelayMs / 1000,
+    ease: zoom.cardEasing,
+  };
+  const cardCloseTransition = {
+    duration: (zoom.cardFadeMs * 0.85) / 1000,
+    delay: 0,
+    ease: zoom.cardEasing,
   };
   const scrimTransition = {
-    duration: SCRIM_MOTION.durationMs / 1000,
-    ease: SCRIM_MOTION.easing,
+    duration: zoom.scrimFadeMs / 1000,
+    ease: zoom.scrimEasing,
   };
+  const backdropStyle = {
+    '--zoom-scrim-max': zoom.scrimOpacityMax,
+    '--zoom-scrim-blur': `${zoom.scrimBlurPx}px`,
+  } as CSSProperties;
 
   const content = imageId ? resolveZoomContent(imageId) : null;
 
@@ -35,9 +47,10 @@ export function ImageZoomOverlay({
       {open && imageId && content && (
         <motion.div
           className="zoom-backdrop"
-          initial={SCRIM_MOTION.initial}
-          animate={SCRIM_MOTION.animate}
-          exit={SCRIM_MOTION.exit}
+          style={backdropStyle}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={scrimTransition}
           onClick={closeOnBackdrop ? onClose : undefined}
           role="dialog"
@@ -48,8 +61,8 @@ export function ImageZoomOverlay({
             className="zoom-card"
             initial={IMAGE_ZOOM_MOTION.initial}
             animate={IMAGE_ZOOM_MOTION.animate}
-            exit={IMAGE_ZOOM_MOTION.exit}
-            transition={cardTransition}
+            exit={{ ...IMAGE_ZOOM_MOTION.exit, transition: cardCloseTransition }}
+            transition={cardOpenTransition}
             onClick={(e) => e.stopPropagation()}
           >
             <header className="zoom-card-header">
