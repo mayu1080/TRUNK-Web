@@ -174,6 +174,8 @@ export function App() {
         aria-hidden={pointerBlocked}
       />
 
+      <NoiseOverlay config={visualConfig} />
+
       <div
         className="bg-gradient"
         style={{
@@ -182,8 +184,6 @@ export function App() {
         }}
         aria-hidden="true"
       />
-
-      <NoiseOverlay config={visualConfig} />
 
       <HitTestDebugOverlay
         enabled={hitTestDebug && !reviewMode}

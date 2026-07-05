@@ -10,7 +10,15 @@ import {
   type PlacedImage,
 } from './exploreScene';
 import { FpsCounter } from './fpsCounter';
-import { attachWheelZoom, GestureController, type TapGestureProbe } from './gestureController';
+import { attachExploreWheel, GestureController, type TapGestureProbe } from './gestureController';
+import {
+  getDepthFlowSpeedDirection,
+  getDepthFlowSpeedMultiplier,
+  getEffectiveDepthFlowSpeed,
+  getLastWheelDeltaDebug,
+  isDepthFlowWheelBoostActive,
+  setDepthFlowSpeedMultiplier,
+} from './depthFlowSpeed';
 import {
   type HitTestDebugSnapshot,
   logHitTestSnapshot,
@@ -91,6 +99,7 @@ export class ExploreController {
     this.host = host;
     if (tonePresetId) this.tonePresetId = tonePresetId;
     this.config = getVisualConfig(presetId, this.tonePresetId);
+    setDepthFlowSpeedMultiplier(MOTION_CONFIG.depthFlow.speedMultiplier);
 
     this.assetResult = await loadListImages();
     if (this.destroyed) return;
@@ -135,12 +144,12 @@ export class ExploreController {
       this.scene.contentBounds,
     );
     this.exploreView = this.clampView(this.exploreView);
-    applyExploreView(this.scene, this.exploreView, this.config, 0);
+    applyExploreView(this.scene, this.exploreView, this.config, 0, 0);
 
     this.gesture = new GestureController(canvas, this.exploreView, {
       onViewChange: (view) => {
         this.exploreView = view;
-        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000);
+        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000, 0);
       },
       onTap: (rx, ry, probe) => void this.handleTap(rx, ry, probe),
       onTapProbe: (probe) => this.recordTapProbe(probe),
@@ -162,20 +171,22 @@ export class ExploreController {
 
     this.gesture.setViewClamp((v) => this.clampView(v));
 
-    this.detachWheel = attachWheelZoom(
+    this.detachWheel = attachExploreWheel(
       canvas,
       () => this.exploreView,
       (v) => {
         this.exploreView = this.clampView(v);
-        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000);
+        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000, 0);
         this.gesture.setView(this.exploreView);
       },
       () => this.interactionEnabled,
+      () => MOTION_CONFIG.depthFlow.enabled,
     );
 
     app.ticker.add(() => {
       if (this.destroyed) return;
       const time = performance.now() / 1000;
+      const deltaTime = this.app.ticker.deltaMS / 1000;
       applyTouchReaction(
         this.scene.images,
         this.touchState,
@@ -185,7 +196,7 @@ export class ExploreController {
         this.config,
         time,
       );
-      applyExploreView(this.scene, this.exploreView, this.config, time);
+      applyExploreView(this.scene, this.exploreView, this.config, time, deltaTime);
       this.emitStats();
     });
 
@@ -208,7 +219,7 @@ export class ExploreController {
     if (!this.scene) return;
 
     const time = performance.now() / 1000;
-    applyExploreView(this.scene, this.exploreView, this.config, time);
+    applyExploreView(this.scene, this.exploreView, this.config, time, 0);
 
     const dom = this.lastDomProbeAtDown ?? probeDomAtPoint(probe.clientDownX, probe.clientDownY);
     const atUp = runHitTestAt(this.scene.world, this.scene.images, probe.canvasUpX, probe.canvasUpY);
@@ -275,7 +286,7 @@ export class ExploreController {
     if (performance.now() < this.zoomCooldownUntil) return;
 
     const time = performance.now() / 1000;
-    applyExploreView(this.scene, this.exploreView, this.config, time);
+    applyExploreView(this.scene, this.exploreView, this.config, time, 0);
 
     const hit = hitTestImage(this.scene.world, this.scene.images, rx, ry);
     if (!hit) return;
@@ -378,6 +389,10 @@ export class ExploreController {
     const idleSample = sampleItem
       ? computeIdleMotion(sampleItem, time, MOTION_CONFIG)
       : null;
+    const depthFlowSample = sampleItem;
+    const selectedItem = this.selectedImageId
+      ? this.scene?.images.find((i) => i.meta.id === this.selectedImageId)
+      : undefined;
     const stats: DebugStats = {
       demoId: 'DD',
       fps,
@@ -395,6 +410,31 @@ export class ExploreController {
       idleMotionEnabled: MOTION_CONFIG.idle.enabled,
       idleSampleY: idleSample?.offsetY ?? 0,
       idleSampleRotDeg: idleSample ? (idleSample.rotation * 180) / Math.PI : 0,
+      depthFlowEnabled: MOTION_CONFIG.depthFlow.enabled,
+      depthFlowMode: MOTION_CONFIG.depthFlow.enabled ? MOTION_CONFIG.depthFlow.mode : 'off',
+      parallaxMode: MOTION_CONFIG.depthFlow.enabled ? 'off' : 'legacy-layer',
+      depthFlowBaseSpeed: MOTION_CONFIG.depthFlow.baseSpeed,
+      depthFlowSpeedMultiplier: getDepthFlowSpeedMultiplier(),
+      depthFlowSpeedDirection: getDepthFlowSpeedDirection(),
+      depthFlowWheelBoost: isDepthFlowWheelBoostActive(),
+      depthFlowWheelDeltaX: getLastWheelDeltaDebug().deltaX,
+      depthFlowWheelDeltaY: getLastWheelDeltaDebug().deltaY,
+      depthFlowWheelAxis: getLastWheelDeltaDebug().axis,
+      depthFlowEffectiveSpeed: getEffectiveDepthFlowSpeed() * getDepthFlowSpeedDirection(),
+      depthFlowMinSpeedMultiplier: MOTION_CONFIG.depthFlow.minSpeedMultiplier,
+      depthFlowMaxSpeedMultiplier: MOTION_CONFIG.depthFlow.maxSpeedMultiplier,
+      depthFlowRespawnCount: this.scene.depthFlowRespawnCount,
+      depthFlowSpeed: sampleItem?.flowSpeed ?? 0,
+      depthFlowSampleDepth: depthFlowSample?.flowDepth ?? 0,
+      depthFlowSampleLabel: depthFlowSample?.layerId ?? '—',
+      depthFlowSampleRenderOrder: depthFlowSample?.renderOrder ?? 0,
+      layerReparentCount: 0,
+      selectedFlowDepth: selectedItem?.flowDepth ?? null,
+      selectedDepthLabel: selectedItem?.layerId ?? null,
+      selectedRenderOrder: selectedItem?.renderOrder ?? null,
+      selectedFlowSpeed: selectedItem?.flowSpeed ?? null,
+      selectedAlpha: selectedItem?.sprite.alpha ?? null,
+      selectedScale: selectedItem?.sprite.scale.x ?? null,
       touchReactionEnabled: cfg.touchReaction.enabled,
       touchReactionStrength: cfg.touchReaction.strength,
       overlayState: this.overlayState,

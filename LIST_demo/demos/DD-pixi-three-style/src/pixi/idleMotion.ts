@@ -1,4 +1,5 @@
 import type { MotionConfig } from '../motionConfig';
+import { smoothstep } from './depthFlowMotion';
 import type { PlacedImage } from './exploreScene';
 
 export interface IdleMotionOffsets {
@@ -46,23 +47,27 @@ export function computeIdleMotion(
     return { offsetX: 0, offsetY: 0, scaleMul: 1, rotation: 0 };
   }
 
-  const profile = idle.depthProfile[item.layerId];
-  const t = item.idleIntensity;
-  const speed = item.idleSpeed;
-
-  // near レイヤを基準（1.0）に far/mid を段階的に抑える
-  const nearY = idle.depthProfile.near.yAmp;
-  const depthY = profile.yAmp / nearY;
-  const depthX = profile.xAmp / idle.depthProfile.near.xAmp;
-  const depthScale = profile.scaleAmp / idle.depthProfile.near.scaleAmp;
-  const depthRot = profile.rotAmpDeg / idle.depthProfile.near.rotAmpDeg;
-
-  const yAmp = lerp(idle.yAmplitudeMin, idle.yAmplitudeMax, t) * depthY;
-  const xAmp = lerp(idle.xAmplitudeMin, idle.xAmplitudeMax, t) * depthX;
-  const scaleAmp = lerp(idle.scaleAmplitudeMin, idle.scaleAmplitudeMax, t) * depthScale;
+  const { far, near } = idle.depthProfile;
+  const depthT = smoothstep(0, 1, item.flowDepth);
+  const yAmp =
+    lerp(idle.yAmplitudeMin, idle.yAmplitudeMax, item.idleIntensity) *
+    lerp(far.yAmp, near.yAmp, depthT) /
+    near.yAmp;
+  const xAmp =
+    lerp(idle.xAmplitudeMin, idle.xAmplitudeMax, item.idleIntensity) *
+    lerp(far.xAmp, near.xAmp, depthT) /
+    near.xAmp;
+  const scaleAmp =
+    lerp(idle.scaleAmplitudeMin, idle.scaleAmplitudeMax, item.idleIntensity) *
+    lerp(far.scaleAmp, near.scaleAmp, depthT) /
+    near.scaleAmp;
   const rotAmp =
-    lerp(idle.rotationAmplitudeDegMin, idle.rotationAmplitudeDegMax, t) * depthRot * DEG;
+    lerp(idle.rotationAmplitudeDegMin, idle.rotationAmplitudeDegMax, item.idleIntensity) *
+    lerp(far.rotAmpDeg, near.rotAmpDeg, depthT) /
+    near.rotAmpDeg *
+    DEG;
 
+  const speed = item.idleSpeed;
   const offsetY = Math.sin(time * speed + item.idlePhaseY) * yAmp;
   const offsetX = Math.sin(time * speed * 0.71 + item.idlePhaseX + 0.9) * xAmp;
   const scaleMul = 1 + Math.sin(time * speed * 0.53 + item.idlePhaseScale) * scaleAmp;

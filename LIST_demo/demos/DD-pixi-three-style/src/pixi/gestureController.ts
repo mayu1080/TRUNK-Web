@@ -1,6 +1,10 @@
 import { mapClientDeltaToRenderer, mapClientToRenderer } from './pointerCoords';
 import type { ExploreView } from './types';
 import {
+  applyDepthFlowWheelFromEvent,
+  clearDepthFlowWheelBoost,
+} from './depthFlowSpeed';
+import {
   INERTIA_FRICTION,
   INERTIA_MIN_VELOCITY,
   MAX_ZOOM,
@@ -332,15 +336,28 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-/** マウスホイールでズーム（デスクトップ検証用） */
-export function attachWheelZoom(
+/** ホイール: 通常=ズーム / Shift=Depth Flow 速度（将来ピンチからも同 API） */
+export function attachExploreWheel(
   canvas: HTMLCanvasElement,
   getView: () => ExploreView,
   setView: (v: ExploreView) => void,
-  isEnabled: () => boolean,
+  isZoomEnabled: () => boolean,
+  isDepthFlowSpeedEnabled: () => boolean,
 ): () => void {
+  let shiftHeld = false;
+
   const onWheel = (e: WheelEvent): void => {
-    if (!isEnabled()) return;
+    const depthFlowWheel = (e.shiftKey || shiftHeld) && isDepthFlowSpeedEnabled();
+
+    if (depthFlowWheel) {
+      e.preventDefault();
+      applyDepthFlowWheelFromEvent(e);
+      return;
+    }
+
+    clearDepthFlowWheelBoost();
+
+    if (!isZoomEnabled()) return;
     e.preventDefault();
     const view = getView();
     const factor = e.deltaY > 0 ? 0.92 : 1.08;
@@ -353,6 +370,35 @@ export function attachWheelZoom(
       panY: p.y - (p.y - view.panY) * ratio,
     });
   };
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Shift') {
+      shiftHeld = true;
+    }
+  };
+  const onKeyUp = (e: KeyboardEvent): void => {
+    if (e.key === 'Shift') {
+      shiftHeld = false;
+      clearDepthFlowWheelBoost();
+    }
+  };
+
   canvas.addEventListener('wheel', onWheel, { passive: false });
-  return () => canvas.removeEventListener('wheel', onWheel);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  return () => {
+    canvas.removeEventListener('wheel', onWheel);
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
+    clearDepthFlowWheelBoost();
+  };
+}
+
+/** @deprecated attachExploreWheel を使用 */
+export function attachWheelZoom(
+  canvas: HTMLCanvasElement,
+  getView: () => ExploreView,
+  setView: (v: ExploreView) => void,
+  isEnabled: () => boolean,
+): () => void {
+  return attachExploreWheel(canvas, getView, setView, isEnabled, () => false);
 }

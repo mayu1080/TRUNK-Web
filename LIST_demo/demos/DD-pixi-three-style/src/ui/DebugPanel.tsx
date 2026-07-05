@@ -37,6 +37,18 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
     `idle sample: dy=${stats.idleSampleY.toFixed(2)} rot=${stats.idleSampleRotDeg.toFixed(3)}°`,
     `touch reaction: ${stats.touchReactionEnabled ? 'ON' : 'OFF'}  str: ${stats.touchReactionStrength}`,
     '',
+    '--- depth flow (E) ---',
+    `enabled: ${stats.depthFlowEnabled ? 'ON' : 'OFF'}  mode: ${stats.depthFlowMode}  parallax: ${stats.parallaxMode}`,
+    `baseSpeed: ${stats.depthFlowBaseSpeed.toFixed(4)}  speedMult: ${stats.depthFlowSpeedMultiplier.toFixed(2)}  dir: ${stats.depthFlowSpeedDirection > 0 ? '奥→手前' : '手前→奥'}${stats.depthFlowWheelBoost ? ' (Shift+wheel)' : ''}`,
+    `effective: ${stats.depthFlowEffectiveSpeed.toFixed(4)}  step: ×${MOTION_CONFIG.depthFlow.wheelStepFactor} per Shift+wheel`,
+    `last wheel: Δ${stats.depthFlowWheelAxis}=${stats.depthFlowWheelAxis === 'x' ? stats.depthFlowWheelDeltaX.toFixed(1) : stats.depthFlowWheelDeltaY.toFixed(1)} (Δx=${stats.depthFlowWheelDeltaX.toFixed(1)} Δy=${stats.depthFlowWheelDeltaY.toFixed(1)})`,
+    `speed range: ${stats.depthFlowMinSpeedMultiplier}–${stats.depthFlowMaxSpeedMultiplier}  respawns: ${stats.depthFlowRespawnCount}`,
+    `sample: depth=${stats.depthFlowSampleDepth.toFixed(3)} label=${stats.depthFlowSampleLabel} speed=${stats.depthFlowSpeed.toFixed(4)} ord=${stats.depthFlowSampleRenderOrder}`,
+    `4段階 alpha: [${MOTION_CONFIG.depthFlow.alphaByStage.join(', ')}]`,
+    `4段階 blur: [${MOTION_CONFIG.depthFlow.blurByStage.join(', ')}]`,
+    `4段階 scale: [${MOTION_CONFIG.depthFlow.scaleByStage.join(', ')}]`,
+    `wheel: Shift+↑=正×${MOTION_CONFIG.depthFlow.wheelStepFactor}  Shift+↓=逆×${MOTION_CONFIG.depthFlow.wheelStepFactor}  (plain=zoom)`,
+    '',
     '--- IMAGE_ZOOM timeline ---',
     `tap bright: ${tap.riseMs}ms${tap.holdMs > 0 ? ` + hold ${tap.holdMs}ms` : ''} (parallel, scale ${tap.scaleTo === 1 ? 'off' : tap.scaleTo})`,
     `scrim fade: ${zoom.scrimFadeMs}ms  opacity max: ${zoom.scrimOpacityMax}  blur: ${zoom.scrimBlurPx}px`,
@@ -63,6 +75,14 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
     `pan: ${stats.panX.toFixed(0)}, ${stats.panY.toFixed(0)}  zoom: ${stats.zoom.toFixed(3)}`,
     `selectedImageId: ${stats.selectedImageId ?? '(none)'}`,
   ];
+
+  if (stats.selectedImageId && stats.selectedFlowDepth != null) {
+    runtimeLines.push(
+      `selected flowDepth: ${stats.selectedFlowDepth.toFixed(3)}  label: ${stats.selectedDepthLabel ?? '—'}`,
+      `selected flowSpeed: ${stats.selectedFlowSpeed?.toFixed(4) ?? '—'}  alpha: ${stats.selectedAlpha?.toFixed(3) ?? '—'}  scale: ${stats.selectedScale?.toFixed(3) ?? '—'}`,
+      `selected renderOrder: ${stats.selectedRenderOrder ?? '—'}`,
+    );
+  }
 
   if (stats.selectedImage) {
     const s = stats.selectedImage;

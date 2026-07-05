@@ -54,11 +54,56 @@ body,
 .noise-overlay {
   position: fixed;
   inset: 0;
-  z-index: 3;
+  /* Pixi(2) の上 — IMAGE_ZOOM(20) / drawer(20) の下 */
+  z-index: 12;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 220px 220px;
-  mix-blend-mode: soft-light;
+  overflow: hidden;
+}
+
+.noise-overlay__tile {
+  position: absolute;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  background-repeat: repeat;
+  opacity: 0.92;
+}
+
+.noise-overlay__tile--a {
+  animation: noise-tile-drift-a 24s linear infinite;
+}
+
+.noise-overlay__tile--b {
+  opacity: 0.55;
+  animation: noise-tile-drift-b 31s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noise-overlay__tile {
+    animation: none !important;
+  }
+}
+
+@keyframes noise-tile-drift-a {
+  0% {
+    transform: translate3d(0, 0, 0);
+    background-position: 0 0;
+  }
+  100% {
+    transform: translate3d(0.4%, -0.3%, 0);
+    background-position: 200px 160px;
+  }
+}
+
+@keyframes noise-tile-drift-b {
+  0% {
+    transform: translate3d(0, 0, 0);
+    background-position: 80px 40px;
+  }
+  100% {
+    transform: translate3d(-0.35%, 0.25%, 0);
+    background-position: -120px 200px;
+  }
 }
 
 .ui-chrome-layer {
@@ -273,7 +318,7 @@ body,
 .hit-test-debug-layer {
   position: fixed;
   inset: 0;
-  z-index: 8;
+  z-index: 14;
   pointer-events: none;
 }
 

@@ -43,7 +43,7 @@ export function getWorldPanBounds(world: VisualConfig['world']): ContentBounds {
   };
 }
 
-function mergeBounds(a: ContentBounds, b: ContentBounds): ContentBounds {
+export function mergeBounds(a: ContentBounds, b: ContentBounds): ContentBounds {
   return {
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),

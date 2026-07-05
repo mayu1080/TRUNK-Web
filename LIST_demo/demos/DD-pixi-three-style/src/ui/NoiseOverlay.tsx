@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { VisualConfig } from '../visualConfig';
+import { resolveNoiseTextureUrl } from './noiseTexture';
 import type { TonePresetId, VisualPresetId } from '../visualConfig';
 import { TONE_PRESET_IDS, TONE_PRESETS } from '../visualConfig';
 
@@ -6,16 +8,56 @@ interface NoiseOverlayProps {
   config: VisualConfig;
 }
 
-/** DOM grain — WebGL canvas 1枚の上、UIの下 */
+/**
+ * Turbulence grain — Pixi 探索画像の直上（z-index 12）
+ * 本番は public/textures/noise-turbulence.png 等のタイル素材を推奨
+ */
 export function NoiseOverlay({ config }: NoiseOverlayProps) {
-  if (!config.background.noiseEnabled) return null;
+  const { background } = config;
+  const [texture, setTexture] = useState<{
+    url: string;
+    source: 'asset' | 'procedural';
+  } | null>(null);
+
+  useEffect(() => {
+    if (!background.noiseEnabled) {
+      setTexture(null);
+      return;
+    }
+
+    let cancelled = false;
+    void resolveNoiseTextureUrl(background.noiseTextureUrl, background.noiseTileSize).then(
+      (resolved) => {
+        if (!cancelled) setTexture(resolved);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [background.noiseEnabled, background.noiseTextureUrl, background.noiseTileSize]);
+
+  if (!background.noiseEnabled || !texture) return null;
+
+  const tile = background.noiseTileSize;
+  const tileStyle = {
+    backgroundImage: `url(${texture.url})`,
+    backgroundSize: `${tile}px ${tile}px`,
+  };
 
   return (
     <div
       className="noise-overlay"
-      style={{ opacity: config.background.noiseOpacity }}
+      style={{
+        opacity: background.noiseOpacity,
+        mixBlendMode: background.noiseBlendMode,
+      }}
+      data-noise-source={texture.source}
       aria-hidden="true"
-    />
+    >
+      <div className="noise-overlay__tile noise-overlay__tile--a" style={tileStyle} />
+      <div className="noise-overlay__tile noise-overlay__tile--b" style={tileStyle} />
+    </div>
   );
 }
 

@@ -2,10 +2,27 @@ import type { VisualConfig } from '../visualConfig';
 
 export type DepthLayerId = 'far' | 'mid' | 'near';
 
+/** Depth Flow E — 4段階デバッグラベル */
+export type DepthFlowStageId = 'far' | 'midFar' | 'midNear' | 'near';
+
+const DEPTH_FLOW_STAGE_LABELS: readonly DepthFlowStageId[] = [
+  'far',
+  'midFar',
+  'midNear',
+  'near',
+];
+
 export function depthToLayer(depth: number): DepthLayerId {
   if (depth < 0.34) return 'far';
   if (depth < 0.67) return 'mid';
   return 'near';
+}
+
+/** Depth Flow E — flowDepth から 4段階ラベル（親 container 切替には使わない） */
+export function depthLabelForFlow(flowDepth: number): DepthFlowStageId {
+  const d = Math.max(0, Math.min(1, flowDepth));
+  const stage = Math.min(DEPTH_FLOW_STAGE_LABELS.length - 1, Math.floor(d * 4));
+  return DEPTH_FLOW_STAGE_LABELS[stage];
 }
 
 export function parallaxCoeffForDepth(depth: number, config: VisualConfig): number {

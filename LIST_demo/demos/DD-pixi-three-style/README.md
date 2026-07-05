@@ -64,8 +64,8 @@ debug モードで tone preset・visual preset・FPS・ヒットテスト等を�
 |------|------|
 | 暗背景の質感 | DOM グラデーション + Pixi 透明背景 |
 | 粒状ノイズ | DOM `feTurbulence` SVG タイル overlay（`mix-blend-mode: overlay`） |
-| 深度レイヤー | depth 0–1 → far/mid/near 3 コンテナ、scale / alpha |
-| パララックス | レイヤーごとに pan 係数差（`parallaxStrength`） |
+| 深度レイヤー | depth flow（E）: 連続 flowDepth + ループ respawn、単一 imageContainer |
+| パララックス | depth flow 有効時は OFF（legacy プリセットのみレイヤー別） |
 | 浮遊感 | sin による y / rotation 微揺れ |
 | タッチ微反応 | ポインタ近傍の scale / 遅延オフセット |
 | タップ手前遷移 | タップ後 scale + 明るさバンプ → `IMAGE_ZOOM` |
@@ -82,8 +82,10 @@ debug モードで tone preset・visual preset・FPS・ヒットテスト等を�
 
 | 操作 | 挙動 |
 |------|------|
-| ドラッグ | パン（深度パララックスあり） |
+| ドラッグ | パン |
 | ピンチ / ホイール | ズーム |
+| **Shift + ホイール上** | 一時的に奥→手前を ×2.75（Shift 離すと初期速度へ） |
+| **Shift + ホイール下** | 一時的に手前→奥（逆再生）を ×2.75（Shift 離すと初期速度へ） |
 | 画像タップ | 手前バンプ → `IMAGE_ZOOM` |
 | 右上ハンバーガー | `categoryDrawer` |
 | 右下 preset | visual プリセット切替 |
@@ -105,7 +107,7 @@ debug モードで tone preset・visual preset・FPS・ヒットテスト等を�
 ## 既知の制限
 
 - ノイズは DOM overlay（WebGL フィルタではない）
-- 深度 blur は未実装（alpha / scale で代用）
+- 深度 blur は depth flow（E）で per-sprite `BlurFilter` を使用
 - `categoryDrawer` はデモ用カテゴリのみ（本番遷移なし）
 - 音なし
 - 4 面 30 分ストレステストは未実施

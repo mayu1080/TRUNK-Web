@@ -17,6 +17,10 @@ export interface VisualConfig {
     gradientOpacity: number;
     noiseEnabled: boolean;
     noiseOpacity: number;
+    /** public/ 配下のタイル PNG（未配置時は procedural）例: /textures/noise-turbulence.png */
+    noiseTextureUrl?: string;
+    noiseTileSize: number;
+    noiseBlendMode: 'overlay' | 'soft-light' | 'screen';
   };
   world: {
     width: number;
@@ -114,6 +118,9 @@ export const VISUAL_PRESETS: Record<VisualPresetId, VisualConfig> = {
       gradientOpacity: 0.28,
       noiseEnabled: false,
       noiseOpacity: 0,
+      noiseTextureUrl: '/textures/noise-turbulence.png',
+      noiseTileSize: 200,
+      noiseBlendMode: 'soft-light',
     },
     world: { ...WORLD_BASE, defaultZoom: 1.0 },
     placement: PLACEMENT_BASE,
@@ -146,7 +153,10 @@ export const VISUAL_PRESETS: Record<VisualPresetId, VisualConfig> = {
       gradientBottom: BG_BOTTOM,
       gradientOpacity: 0.12,
       noiseEnabled: true,
-      noiseOpacity: 0.06,
+      noiseOpacity: 0.14,
+      noiseTextureUrl: '/textures/noise-turbulence.png',
+      noiseTileSize: 200,
+      noiseBlendMode: 'soft-light',
     },
     world: WORLD_BASE,
     placement: PLACEMENT_BASE,
@@ -194,7 +204,10 @@ export const VISUAL_PRESETS: Record<VisualPresetId, VisualConfig> = {
       gradientBottom: BG_BOTTOM,
       gradientOpacity: 0.32,
       noiseEnabled: true,
-      noiseOpacity: 0.06,
+      noiseOpacity: 0.22,
+      noiseTextureUrl: '/textures/noise-turbulence.png',
+      noiseTileSize: 200,
+      noiseBlendMode: 'soft-light',
     },
     world: { ...WORLD_BASE, defaultZoom: 1.0 },
     placement: {

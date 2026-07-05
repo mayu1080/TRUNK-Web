@@ -1,5 +1,6 @@
 import {
   Assets,
+  BlurFilter,
   ColorMatrixFilter,
   Container,
   Rectangle,
@@ -7,13 +8,7 @@ import {
   Texture,
 } from 'pixi.js';
 import type { VisualConfig } from '../visualConfig';
-import {
-  depthAlpha,
-  depthScale,
-  depthToLayer,
-  layerParallaxOffset,
-  parallaxCoeffForDepth,
-} from './depthController';
+import { depthAlpha, depthScale, depthToLayer } from './depthController';
 import {
   aggregateDisplaySizeStats,
   buildDisplayMetrics,
@@ -36,14 +31,30 @@ import type { ContentBounds } from './worldBounds';
 import { computeContentBounds } from './worldBounds';
 import type { DemoListImage, ExploreView } from './types';
 import { MOTION_CONFIG } from '../motionConfig';
+import {
+  applyDepthBlur,
+  createDepthBlurFilter,
+  initDepthFlowParams,
+  integrateDepthFlow,
+} from './depthFlowMotion';
 import { computeIdleMotion, initIdleParams } from './idleMotion';
 
 export interface PlacedImage {
   sprite: Sprite;
   meta: DemoListImage;
   display: ImageDisplayMetrics;
+  /** 配置時の初期 depth（デバッグ用） */
   depth: number;
-  layerId: 'far' | 'mid' | 'near';
+  /** デバッグ用ラベル — flowDepth から毎フレーム更新（4段階 or legacy 3段階） */
+  layerId: 'far' | 'mid' | 'near' | 'midFar' | 'midNear';
+  flowDepth: number;
+  flowSpeed: number;
+  /** speedVariance 由来の個体差（baseSpeed×multiplier に加算） */
+  flowSpeedVariance: number;
+  flowDirX: number;
+  flowDirY: number;
+  flowMotionDistance: number;
+  stableIndex: number;
   baseX: number;
   baseY: number;
   baseScale: number;
@@ -61,6 +72,7 @@ export interface PlacedImage {
   tapFocusScale: number;
   tapFocusBright: number;
   greyFilter: ColorMatrixFilter;
+  blurFilter: BlurFilter;
   renderOrder: number;
 }
 
@@ -68,7 +80,7 @@ export interface HitTestCandidate {
   item: PlacedImage;
   imageId: string;
   depth: number;
-  layerId: 'far' | 'mid' | 'near';
+  layerId: 'far' | 'mid' | 'near' | 'midFar' | 'midNear';
   zIndex: number;
   renderOrder: number;
   bounds: { x: number; y: number; w: number; h: number };
@@ -76,13 +88,16 @@ export interface HitTestCandidate {
 
 export interface ExploreScene {
   world: Container;
-  layers: { far: Container; mid: Container; near: Container };
+  /** 全探索画像の単一親 — パララックス / reparent なし */
+  imageContainer: Container;
   images: PlacedImage[];
   contentBounds: ContentBounds;
   texturesLoaded: number;
   textureMemoryBytes: number;
   loadTimeMs: number;
   displaySizeStats: DisplaySizeStats;
+  /** depth flow ループ respawn 累計 */
+  depthFlowRespawnCount: number;
 }
 
 function estimateTextureBytes(texture: Texture): number {
@@ -106,13 +121,15 @@ export function applyImageTone(
   filter: ColorMatrixFilter,
   config: VisualConfig,
   brightnessMul = 1,
+  contrastMul = 1,
 ): void {
   filter.reset();
   const { image } = config;
+  const contrast = image.contrast * contrastMul;
 
   if (!image.grayscale) {
-    if (image.contrast !== 0.5) {
-      filter.contrast(image.contrast, false);
+    if (contrast !== 0.5) {
+      filter.contrast(contrast, false);
     }
     const bright = image.brightness * brightnessMul;
     if (bright !== 1) {
@@ -121,10 +138,9 @@ export function applyImageTone(
     return;
   }
 
-  // multiply:true で連鎖 — false だと blackAndWhite が消えてカラーに戻る
   filter.blackAndWhite(false);
   filter.brightness(image.brightness * brightnessMul, true);
-  filter.contrast(image.contrast, true);
+  filter.contrast(contrast, true);
 }
 
 export async function buildExploreScene(
@@ -137,19 +153,12 @@ export async function buildExploreScene(
   world.eventMode = 'none';
   world.interactiveChildren = false;
 
-  const layers = {
-    far: new Container(),
-    mid: new Container(),
-    near: new Container(),
-  };
-  layers.far.label = 'layer-far';
-  layers.mid.label = 'layer-mid';
-  layers.near.label = 'layer-near';
-  for (const layer of Object.values(layers)) {
-    layer.eventMode = 'none';
-    layer.interactiveChildren = false;
-  }
-  world.addChild(layers.far, layers.mid, layers.near);
+  const imageContainer = new Container();
+  imageContainer.label = 'dd-image-container';
+  imageContainer.eventMode = 'none';
+  imageContainer.interactiveChildren = false;
+  imageContainer.sortableChildren = true;
+  world.addChild(imageContainer);
 
   const rand = seededRandom(PLACEMENT_SEED);
   const orderedImages = interleaveByGroup(images, PLACEMENT_SEED + 17);
@@ -167,6 +176,7 @@ export async function buildExploreScene(
   const totalCount = orderedImages.length;
   let itemIndex = 0;
   const contentPoints: { x: number; y: number; halfW: number; halfH: number }[] = [];
+  const useDepthFlow = MOTION_CONFIG.depthFlow.enabled;
 
   for (const meta of orderedImages) {
     const texture = Texture.from(meta.url);
@@ -182,8 +192,10 @@ export async function buildExploreScene(
 
     const depth = rand();
     const layerId = depthToLayer(depth);
-    const dScale = config.depth.enabled ? depthScale(depth, config) : 1;
-    const dAlpha = config.depth.enabled ? depthAlpha(depth, config) : 1;
+    const dScale =
+      config.depth.enabled && !useDepthFlow ? depthScale(depth, config) : 1;
+    const dAlpha =
+      config.depth.enabled && !useDepthFlow ? depthAlpha(depth, config) : 1;
 
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
@@ -195,7 +207,8 @@ export async function buildExploreScene(
 
     const greyFilter = new ColorMatrixFilter();
     applyImageTone(greyFilter, config);
-    sprite.filters = [greyFilter];
+    const blurFilter = createDepthBlurFilter();
+    sprite.filters = useDepthFlow ? [greyFilter, blurFilter] : [greyFilter];
 
     const halfW = (display.displayedWidth * dScale) / 2;
     const halfH = (display.displayedHeight * dScale) / 2;
@@ -213,29 +226,33 @@ export async function buildExploreScene(
       config.placement,
       rand,
     );
-    itemIndex += 1;
 
     contentPoints.push({ x: baseX, y: baseY, halfW, halfH });
-
     placedPoints.push({ x: baseX, y: baseY, group });
     sprite.x = baseX;
     sprite.y = baseY;
-    sprite.zIndex = Math.floor(depth * 1000);
-
     sprite.label = meta.id;
-    layers[layerId].addChild(sprite);
-    layers[layerId].sortableChildren = true;
-    layers[layerId].sortChildren();
 
-    const layerBase = layerId === 'near' ? 20_000 : layerId === 'mid' ? 10_000 : 0;
-    const renderOrder = layerBase + sprite.zIndex;
+    const stableIndex = itemIndex;
+    const renderOrder = Math.round(depth * 10_000) + stableIndex;
+    sprite.zIndex = renderOrder;
 
-    placed.push({
+    imageContainer.addChild(sprite);
+    itemIndex += 1;
+
+    const placedItem: PlacedImage = {
       sprite,
       meta,
       display,
       depth,
       layerId,
+      flowDepth: depth,
+      flowSpeed: 0,
+      flowSpeedVariance: 0,
+      flowDirX: 0,
+      flowDirY: -1,
+      flowMotionDistance: 0,
+      stableIndex,
       baseX,
       baseY,
       baseScale,
@@ -253,35 +270,45 @@ export async function buildExploreScene(
       tapFocusScale: 1,
       tapFocusBright: 1,
       greyFilter,
+      blurFilter,
       renderOrder,
-    });
-    const placedItem = placed[placed.length - 1]!;
+    };
+    placed.push(placedItem);
     initIdleParams(placedItem, rand, MOTION_CONFIG);
+    initDepthFlowParams(placedItem, rand, MOTION_CONFIG);
     allMetrics.push(display);
   }
+
+  imageContainer.sortChildren();
 
   const loadTimeMs = performance.now() - loadStart;
   const contentBounds = computeContentBounds(contentPoints, config.world.contentPadding);
 
   return {
     world,
-    layers,
+    imageContainer,
     images: placed,
     contentBounds,
     texturesLoaded: textureSet.size,
     textureMemoryBytes,
     loadTimeMs,
     displaySizeStats: aggregateDisplaySizeStats(allMetrics),
+    depthFlowRespawnCount: 0,
   };
 }
 
 export function applyVisualConfigToScene(scene: ExploreScene, config: VisualConfig): void {
+  const useDepthFlow = MOTION_CONFIG.depthFlow.enabled;
   for (const item of scene.images) {
-    applyImageTone(item.greyFilter, config);
-    const dScale = config.depth.enabled ? depthScale(item.depth, config) : 1;
-    const dAlpha = config.depth.enabled ? depthAlpha(item.depth, config) : 1;
-    item.sprite.alpha = dAlpha * config.image.listAlpha;
+    const dScale =
+      config.depth.enabled && !useDepthFlow ? depthScale(item.depth, config) : 1;
+    const dAlpha =
+      config.depth.enabled && !useDepthFlow ? depthAlpha(item.depth, config) : 1;
     item.baseScale = item.display.scale * dScale;
+    if (!useDepthFlow) {
+      applyImageTone(item.greyFilter, config);
+      item.sprite.alpha = dAlpha * config.image.listAlpha;
+    }
   }
 }
 
@@ -290,12 +317,22 @@ export function applyExploreView(
   view: ExploreView,
   config: VisualConfig,
   time: number,
+  deltaTime = 0,
 ): void {
-  worldTransform(scene, view, config);
+  worldTransform(scene, view);
 
   const useIdle = MOTION_CONFIG.idle.enabled;
+  const useDepthFlow = MOTION_CONFIG.depthFlow.enabled;
+  let needsSort = false;
 
   for (const item of scene.images) {
+    const flow = integrateDepthFlow(item, scene, deltaTime, config, MOTION_CONFIG);
+    item.flowDepth = flow.flowDepth;
+    item.layerId = flow.depthLabel;
+    item.renderOrder = flow.renderOrder;
+    item.sprite.zIndex = flow.renderOrder;
+    needsSort = true;
+
     let idleX = 0;
     let idleY = 0;
     let idleScaleMul = 1;
@@ -316,47 +353,42 @@ export function applyExploreView(
         config.float.amplitudeRot;
     }
 
-    item.sprite.x = item.baseX + item.reactionOffsetX + idleX;
-    item.sprite.y = item.baseY + item.reactionOffsetY + idleY;
+    item.sprite.x = item.baseX + item.reactionOffsetX + idleX + flow.offsetX;
+    item.sprite.y = item.baseY + item.reactionOffsetY + idleY + flow.offsetY;
     item.sprite.rotation = idleRot;
 
+    const depthScaleMul = useDepthFlow ? flow.scaleMul : 1;
     const totalScale =
-      item.baseScale * item.reactionScale * item.tapFocusScale * idleScaleMul;
+      item.baseScale * depthScaleMul * item.reactionScale * item.tapFocusScale * idleScaleMul;
     item.sprite.scale.set(totalScale);
 
-    if (item.tapFocusBright !== 1) {
-      applyImageTone(item.greyFilter, config, item.tapFocusBright);
+    const brightMul =
+      (item.tapFocusBright !== 1 ? item.tapFocusBright : 1) *
+      (useDepthFlow ? flow.brightnessMul : 1);
+    const contrastMul = useDepthFlow ? flow.contrastMul : 1;
+    if (useDepthFlow || item.tapFocusBright !== 1) {
+      applyImageTone(item.greyFilter, config, brightMul, contrastMul);
+    }
+
+    if (useDepthFlow) {
+      item.sprite.alpha = flow.alphaMul * config.image.listAlpha;
+      applyDepthBlur(item.blurFilter, flow.blurStrength);
+      item.depth = flow.flowDepth;
     }
   }
+
+  if (needsSort && useDepthFlow) {
+    scene.imageContainer.sortChildren();
+  }
 }
 
-function worldTransform(scene: ExploreScene, view: ExploreView, config: VisualConfig): void {
+/** 全画像共通 pan / zoom — レイヤー別パララックスなし */
+function worldTransform(scene: ExploreScene, view: ExploreView): void {
   scene.world.position.set(view.panX, view.panY);
   scene.world.scale.set(view.zoom);
-
-  if (!config.depth.enabled) {
-    scene.layers.far.position.set(0, 0);
-    scene.layers.mid.position.set(0, 0);
-    scene.layers.near.position.set(0, 0);
-    return;
-  }
-
-  const strength = config.depth.parallaxStrength;
-  const coeffs = {
-    far: config.depth.parallaxFar,
-    mid: config.depth.parallaxMid,
-    near: config.depth.parallaxNear,
-  };
-
-  for (const id of ['far', 'mid', 'near'] as const) {
-    const off = layerParallaxOffset(view.panX, view.panY, coeffs[id], strength);
-    scene.layers[id].position.set(off.x / view.zoom, off.y / view.zoom);
-  }
-
-  void parallaxCoeffForDepth;
 }
 
-/** 最終表示 bounds（float / parallax / rotation / scale 反映後）でヒット候補を列挙 */
+/** 最終表示 bounds（float / rotation / scale 反映後）でヒット候補を列挙 */
 export function hitTestCandidates(
   images: PlacedImage[],
   rendererX: number,
@@ -366,14 +398,18 @@ export function hitTestCandidates(
   const py = rendererY;
   const hits: HitTestCandidate[] = [];
 
+  const minAlpha = MOTION_CONFIG.depthFlow.hitTestMinAlpha;
+  const skipLowAlpha = MOTION_CONFIG.depthFlow.enabled;
+
   for (const item of images) {
     const { sprite } = item;
+    if (skipLowAlpha && sprite.alpha < minAlpha) continue;
     const b = sprite.getBounds();
     if (px < b.minX || px > b.maxX || py < b.minY || py > b.maxY) continue;
     hits.push({
       item,
       imageId: item.meta.id,
-      depth: item.depth,
+      depth: item.flowDepth,
       layerId: item.layerId,
       zIndex: sprite.zIndex,
       renderOrder: item.renderOrder,

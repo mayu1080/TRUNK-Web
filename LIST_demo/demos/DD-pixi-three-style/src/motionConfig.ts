@@ -6,12 +6,14 @@
  *   B tapReaction   … タップ確定直後、選択画像の pre-ZOOM 反応
  *   C imageZoomOpen … DOM IMAGE_ZOOM（scrim + 白カード）の開閉
  *   D drawer        … categoryDrawer パネル + 背面 scrim
+ *   E depthFlow     … ループ型 flowDepth（奥→手前→respawn / 単一 imageContainer）
  *
  * 主な参照先:
  *   idle        → pixi/idleMotion.ts, pixi/exploreScene.ts
  *   tapReaction → pixi/touchReaction.ts, pixi/exploreController.ts
  *   imageZoomOpen → ui/ImageZoomOverlay.tsx, styles.css (--zoom-scrim-*)
  *   drawer      → ui/CategoryDrawer.tsx
+ *   depthFlow   → pixi/depthFlowMotion.ts, pixi/exploreScene.ts
  *   overlay     → 汎用 scrim 定数（SCRIM_MOTION — 現状 IMAGE_ZOOM 未使用）
  *
  * debug パネル左上「IMAGE_ZOOM timeline」も本ファイルの値を表示。
@@ -153,6 +155,48 @@ export interface MotionConfig {
   };
 
   /**
+   * E — ループ型 depth flow（単一 imageContainer / パララックスなし）
+   * depthFlowMotion.ts → applyExploreView
+   * 速度変更: Shift+ホイール（gestureController）→ depthFlowSpeed.ts
+   */
+  depthFlow: {
+    enabled: boolean;
+    /** デバッグ表示用 — 実装モード */
+    mode: 'looping';
+    /** flowDepth 基本速度 [1/秒] — 0.015 ≈ 66秒で奥→手前 */
+    baseSpeed: number;
+    /** 初期 speedMultiplier（ランタイムは depthFlowSpeed.ts） */
+    speedMultiplier: number;
+    /** 画像ごとの速度ばらつき ± */
+    speedVariance: number;
+    minSpeedMultiplier: number;
+    maxSpeedMultiplier: number;
+    /**
+     * Shift+ホイール 1 notch あたりの speedMultiplier 倍率
+     * 上スクロール: 奥→手前（正）× factor / 下: 手前→奥（逆）× factor
+     */
+    wheelStepFactor: number;
+    /** 4段階 knot — flowDepth 0 / ⅓ / ⅔ / 1（奥→手前） */
+    scaleByStage: [number, number, number, number];
+    alphaByStage: [number, number, number, number];
+    brightnessByStage: [number, number, number, number];
+    contrastByStage: [number, number, number, number];
+    blurByStage: [number, number, number, number];
+    fadeInStart: number;
+    fadeInEnd: number;
+    fadeOutStart: number;
+    fadeOutEnd: number;
+    motionDistanceMin: number;
+    motionDistanceMax: number;
+    spawnPaddingX: number;
+    spawnPaddingY: number;
+    /** これ未満の alpha は hit test 候補から除外 */
+    hitTestMinAlpha: number;
+    /** @deprecated 常に false — 親 container 付け替えなし */
+    reparentLayers: false;
+  };
+
+  /**
    * D — categoryDrawer
    * CategoryDrawer.tsx → DRAWER_MOTION / DRAWER_SCRIM_MOTION
    */
@@ -229,6 +273,33 @@ export const MOTION_CONFIG: MotionConfig = {
     cardExitTranslateY: 0,
     scrimEasing: EASE_IMAGE_ZOOM_SCRIM,
     cardEasing: EASE_IMAGE_ZOOM_CARD,
+  },
+  depthFlow: {
+    enabled: true,
+    mode: 'looping',
+    /** flowDepth 基本速度 [1/秒] — 0.041 ≈ 24秒で奥→手前（×multiplier） */
+    baseSpeed: 0.041,
+    speedMultiplier: 1,
+    speedVariance: 0.006,
+    minSpeedMultiplier: 0.25,
+    maxSpeedMultiplier: 3,
+    wheelStepFactor: 3.75,
+    /** far → midFar → midNear → near */
+    scaleByStage: [0.58, 0.74, 0.96, 1.24],
+    alphaByStage: [0.16, 0.32, 0.68, 1],
+    brightnessByStage: [0.72, 0.8, 0.95, 1.1],
+    contrastByStage: [0.88, 0.93, 0.99, 1.06],
+    blurByStage: [3.6, 2.2, 0.85, 0],
+    fadeInStart: 0.02,
+    fadeInEnd: 0.14,
+    fadeOutStart: 0.82,
+    fadeOutEnd: 1,
+    motionDistanceMin: 24,
+    motionDistanceMax: 80,
+    spawnPaddingX: 200,
+    spawnPaddingY: 160,
+    hitTestMinAlpha: 0.18,
+    reparentLayers: false,
   },
   drawer: {
     widthPx: 320,
