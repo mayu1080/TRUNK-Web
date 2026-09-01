@@ -22,6 +22,16 @@
 
 ---
 
+## GitHub クローン（現場）
+
+`feature/production-phase7` には `LIST_demo` を含めない。履歴ごと取ると重いので、会場は浅い single-branch クローンにする。
+
+```powershell
+git clone --single-branch --depth 1 -b feature/production-phase7 https://github.com/mayu1080/TRUNK-Web.git
+```
+
+その後 USB の `content/`（images / fonts / Logo / text / mp4）をリポジトリ直下に載せる。
+
 ## app 側
 
 作業ディレクトリは `app/`。リポジトリ直下の bat でも可。

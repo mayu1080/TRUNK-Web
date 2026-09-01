@@ -28,6 +28,12 @@ production app の現場確認は **4 タッチ画面 + 管理画面**。管理�
 
 現場メイン起動: リポジトリ直下 `launch-production.bat`、または `cd app` → `npm run start:production`。preview は 4 面合格の代替にしない。
 
+現場クローンは `LIST_demo` を含まない `feature/production-phase7` を浅く取る（`content/` 実素材は USB）:
+
+```powershell
+git clone --single-branch --depth 1 -b feature/production-phase7 https://github.com/mayu1080/TRUNK-Web.git
+```
+
 production shell の状態 ID は `AD_IDLE` / `ANIMATION` / `PRODUCT_LIST` + 面ごとの overlay。下記の `TOP` / 10 分 idle は歴史的な function.xlsx 記述であり、現場運用の正ではない。
 
 ## 正（Source of Truth）

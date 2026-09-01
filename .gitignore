@@ -63,6 +63,5 @@ docs/*.extracted.json
 # === Docs: local-only (not uploaded to GitHub) ===
 docs/open-questions.md
 
-# === PRODUCT_LIST demo workspace ===
-LIST_demo/**/node_modules/
-LIST_demo/**/dist/
+# LIST_demo is on feature/list-demo only; production clones omit it
+LIST_demo/
