@@ -15,7 +15,10 @@ LIST_demo/
 └── demos/              # 簡易デモ実装
     ├── DB-pixi-core/     # Pixi 探索コア
     ├── DA-dom-motion-ui/ # DOM + Motion UI
-    └── DD-pixi-three-style/ # Pixi + Three風 + DOM
+    ├── DD-pixi-three-style/ # Pixi + Three風 + DOM (E)
+    ├── DE-pixi-camera-depth/ # Camera Depth Navigation (E-2) — DD ソース共有・5176
+    ├── DF-three-camera-depth/ # Three.js Camera Depth · 5177
+    └── DI-three-bubble-reveal/ # Three + Bubble Color Reveal · 5178
 ```
 
 ## 方針（要約）
@@ -81,7 +84,10 @@ DB と DA は **別ポート** で同時起動できます（混同しないこ�
 |------|----------|-----|
 | **DB** Pixi 探索コア | `cd LIST_demo && npm run demo:db` | http://localhost:5173 |
 | **DA** DOM + Motion UI | `cd LIST_demo && npm run demo:da` | http://localhost:5174 |
-| **DD** Pixi + Three風 + DOM | `cd LIST_demo && npm run demo:dd` | **http://localhost:5175** |
+| **DD** Pixi + Three風 + DOM (E) | `cd LIST_demo && npm run demo:dd` | **http://localhost:5175** |
+| **DE** Camera Depth (E-2) | `cd LIST_demo && npm run demo:de` | **http://localhost:5176** |
+| **DF** Three.js Camera Depth | `cd LIST_demo && npm run demo:df` | **http://localhost:5177** |
+| **DI** Three Bubble Reveal | `cd LIST_demo && npm run demo:di` | **http://localhost:5178** |
 
 各デモフォルダ内からも `npm run dev` / `npm run demo:db` / `npm run demo:da` で起動可能。詳細は各デモの README を参照。
 

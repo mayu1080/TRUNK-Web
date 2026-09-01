@@ -1,7 +1,13 @@
+import { DEMO_ID } from '../demoIdentity';
 import type { Container } from 'pixi.js';
 import { Point } from 'pixi.js';
 import type { PlacedImage } from './exploreScene';
-import { hitTestCandidates, pickFrontCandidate, type HitTestCandidate } from './exploreScene';
+import {
+  hitTestCandidatesDetailed,
+  pickFrontCandidate,
+  type HitTestCandidate,
+  type HitTestFilterStats,
+} from './exploreScene';
 
 export type TapRejectedReason =
   | 'none'
@@ -9,6 +15,7 @@ export type TapRejectedReason =
   | 'locked'
   | 'cooldown'
   | 'dragging'
+  | 'moved-too-far'
   | 'duration'
   | 'multiPointer'
   | 'noCandidate'
@@ -35,17 +42,26 @@ export interface HitTestDebugSnapshot {
   wasDragging: boolean;
   wasTap: boolean;
   tapRejectedReason: TapRejectedReason;
+  hitTestExecuted: boolean;
   pointerTarget: 'canvas' | 'dom' | 'unknown';
   elementsFromPoint: string[];
   domBlocksCanvas: boolean;
+  filterStats: HitTestFilterStats;
   hitCandidates: HitTestCandidate[];
   hitCandidatesAtDown: HitTestCandidate[];
   chosenImageId: string | null;
+  chosenRenderOrder: number | null;
+  chosenAlpha: number | null;
   chosenBounds: BoundsRect | null;
   chosenAtDownImageId: string | null;
   tapMoveThresholdPx: number;
   tapMaxDurationMs: number;
   panStartThresholdPx: number;
+  canvasRect: { left: number; top: number; width: number; height: number };
+  rendererResolution: number;
+  tapLocked: boolean;
+  cooldownRemainingMs: number;
+  overlayBlocking: boolean;
 }
 
 const _worldPoint = new Point();
@@ -57,20 +73,6 @@ export function rendererToWorld(
 ): { x: number; y: number } {
   world.toLocal({ x: rendererX, y: rendererY }, undefined, _worldPoint);
   return { x: _worldPoint.x, y: _worldPoint.y };
-}
-
-export function boundsToRect(bounds: {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}): BoundsRect {
-  return {
-    x: bounds.minX,
-    y: bounds.minY,
-    w: bounds.maxX - bounds.minX,
-    h: bounds.maxY - bounds.minY,
-  };
 }
 
 export function probeDomAtPoint(clientX: number, clientY: number): {
@@ -119,52 +121,49 @@ export function runHitTestAt(
   candidates: HitTestCandidate[];
   chosen: HitTestCandidate | null;
   world: { x: number; y: number };
+  stats: HitTestFilterStats;
 } {
-  const candidates = hitTestCandidates(images, rendererX, rendererY);
+  const { candidates, stats } = hitTestCandidatesDetailed(images, rendererX, rendererY);
   const chosen = pickFrontCandidate(candidates);
   return {
     candidates,
     chosen,
     world: rendererToWorld(world, rendererX, rendererY),
+    stats,
   };
 }
 
 export function logHitTestSnapshot(snapshot: HitTestDebugSnapshot): void {
   const lines = [
-    '[DD hit test]',
-    `pointer: client down (${snapshot.clientDown.x.toFixed(0)}, ${snapshot.clientDown.y.toFixed(0)}) → up (${snapshot.clientUp.x.toFixed(0)}, ${snapshot.clientUp.y.toFixed(0)})`,
-    `canvas: down (${snapshot.canvasDown.x.toFixed(1)}, ${snapshot.canvasDown.y.toFixed(1)}) → up (${snapshot.canvasUp.x.toFixed(1)}, ${snapshot.canvasUp.y.toFixed(1)})`,
-    `world: down (${snapshot.worldDown.x.toFixed(1)}, ${snapshot.worldDown.y.toFixed(1)}) → up (${snapshot.worldUp.x.toFixed(1)}, ${snapshot.worldUp.y.toFixed(1)})`,
-    `moveDistance: ${snapshot.moveDistancePx.toFixed(1)}px  duration: ${snapshot.durationMs.toFixed(0)}ms`,
-    `wasTap: ${snapshot.wasTap}  wasDragging: ${snapshot.wasDragging}  rejected: ${snapshot.tapRejectedReason}`,
-    `thresholds: tapMove<=${snapshot.tapMoveThresholdPx}px  tapDur<=${snapshot.tapMaxDurationMs}ms  panStart>=${snapshot.panStartThresholdPx}px`,
-    `pointer target: ${snapshot.pointerTarget}  domBlocksCanvas: ${snapshot.domBlocksCanvas}`,
-    `elementsFromPoint: ${snapshot.elementsFromPoint.join(' → ')}`,
-    `hit candidates (at up): ${snapshot.hitCandidates.length}`,
+    `[${DEMO_ID} tapCheck]`,
+    `down: client(${snapshot.clientDown.x.toFixed(0)},${snapshot.clientDown.y.toFixed(0)}) canvas(${snapshot.canvasDown.x.toFixed(1)},${snapshot.canvasDown.y.toFixed(1)})`,
+    `up: client(${snapshot.clientUp.x.toFixed(0)},${snapshot.clientUp.y.toFixed(0)}) canvas(${snapshot.canvasUp.x.toFixed(1)},${snapshot.canvasUp.y.toFixed(1)})`,
+    `moveDistance: ${snapshot.moveDistancePx.toFixed(1)}  durationMs: ${snapshot.durationMs.toFixed(0)}`,
+    `rejectedReason: ${snapshot.tapRejectedReason}  hitTestExecuted: ${snapshot.hitTestExecuted}`,
+    `pointer client: ${snapshot.clientUp.x.toFixed(0)}, ${snapshot.clientUp.y.toFixed(0)}`,
+    `canvas rect: ${snapshot.canvasRect.left.toFixed(0)}, ${snapshot.canvasRect.top.toFixed(0)}, ${snapshot.canvasRect.width.toFixed(0)}x${snapshot.canvasRect.height.toFixed(0)}`,
+    `pointer local/canvas: ${snapshot.canvasUp.x.toFixed(1)}, ${snapshot.canvasUp.y.toFixed(1)}`,
+    `renderer resolution: ${snapshot.rendererResolution}`,
+    `filter: before=${snapshot.filterStats.beforeFilter} vis=${snapshot.filterStats.afterVisibility} alpha=${snapshot.filterStats.afterAlpha} final=${snapshot.filterStats.final}`,
+    `domBlocks: ${snapshot.domBlocksCanvas}  overlayBlocking: ${snapshot.overlayBlocking}  tapLocked: ${snapshot.tapLocked}  cooldownRem: ${snapshot.cooldownRemainingMs.toFixed(0)}`,
+    `hit candidates: ${snapshot.hitCandidates.length}`,
   ];
 
-  for (const [i, c] of snapshot.hitCandidates.entries()) {
+  for (const [i, c] of snapshot.hitCandidates.slice(0, 6).entries()) {
     lines.push(
-      `  ${i + 1}. ${c.imageId} depth=${c.depth.toFixed(2)} layer=${c.layerId} z=${c.zIndex} order=${c.renderOrder} bounds=${formatBounds(c.bounds)}`,
+      `  ${i + 1}. ${c.imageId} order=${c.renderOrder} α=${c.alpha.toFixed(2)} bounds=${formatBounds(c.bounds)}`,
     );
   }
 
   if (snapshot.chosenImageId) {
-    lines.push(`selected by hit test: ${snapshot.chosenImageId}`);
+    lines.push(
+      `chosen: ${snapshot.chosenImageId} order=${snapshot.chosenRenderOrder} α=${snapshot.chosenAlpha?.toFixed(2) ?? '—'}`,
+    );
     if (snapshot.chosenBounds) {
       lines.push(`chosen bounds: ${formatBounds(snapshot.chosenBounds)}`);
     }
-  } else if (snapshot.wasTap) {
-    lines.push('selected by hit test: (none)');
-  }
-
-  if (
-    snapshot.chosenAtDownImageId &&
-    snapshot.chosenAtDownImageId !== snapshot.chosenImageId
-  ) {
-    lines.push(
-      `note: down-position would select ${snapshot.chosenAtDownImageId} (differs from up)`,
-    );
+  } else if (snapshot.wasTap || snapshot.hitTestExecuted) {
+    lines.push('chosen: (none)');
   }
 
   console.log(lines.join('\n'));

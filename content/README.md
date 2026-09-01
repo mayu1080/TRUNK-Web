@@ -10,9 +10,10 @@
 
 1. アプリを終了
 2. `content/` をバックアップ
-3. 新しい `content/` を配置
-4. `TRUNK.exe` を再起動
-5. ログで `manifest.version` を確認
+3. 新しい `content/` を配置（LIST 画像は `images/list/`）
+4. 開発機では `cd app` → `npm run build` → `npm run check:production-content`
+5. `TRUNK.exe` を再起動
+6. ログ / Debug で `manifest.version`、`sourceImageCount`、`displayedImageCount`、`textureLoadedCount` を確認
 
 ## ファイル構成
 
@@ -24,11 +25,13 @@
 | `images/list/` | PRODUCT_LIST 用画像（40〜70枚想定） |
 | `images/{category}/` | カテゴリ別画像 |
 | `thumbs/` | サムネイル |
-| `videos/` | TOP / ANIMATION / CM 用（将来） |
+| `ads.json` | 4面同期広告の紐づけ（`ads/monitor-N.mp4`） |
+| `animation.json` | 入場演出の紐づけ（`animation/monitor-N.mp4`）。`skipOnTouch` は無視（常に false） |
+| `ads/` / `animation/` | 各 monitor 用 mp4。欠落時はプレースホルダ（`fatalIfMissing` 既定 false） |
+| `noise/` | LIST / ZOOM / Category modal 用のフィルムグレイン動画（mp4）。欠落時は DOM grain fallback |
+| `monitor-layout.json` | 本番 4 画面の bounds / viewport offset（`npm run start:production` で必須） |
 
-## スキーマ
-
-`docs/content-schema.md` を参照。
+本番差し替え後の LIST 用は `images/list/` を正とする。空のときは `images/` 再帰スキャン（現行）。投入ルールと validation は [`docs/production/production-content-intake.md`](../docs/production/production-content-intake.md)。
 
 ## サンプルについて
 

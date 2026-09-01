@@ -36,8 +36,10 @@ export function toRelativePath(contentRoot: string, absolutePath: string): strin
 
 export function resolveContentPath(contentRoot: string, relativePath: string): string {
   const normalized = relativePath.replace(/\\/g, '/');
+  const root = path.resolve(contentRoot);
   const resolved = path.resolve(contentRoot, normalized);
-  if (!resolved.startsWith(path.resolve(contentRoot))) {
+  const rel = path.relative(root, resolved);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error(`Invalid content path: ${relativePath}`);
   }
   return resolved;

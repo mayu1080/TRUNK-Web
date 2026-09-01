@@ -1,21 +1,21 @@
-/** デモ用ターゲット枚数（負荷検証） */
-export const TARGET_IMAGE_COUNT = 40;
-export const MAX_IMAGE_COUNT = 70;
+/** デモ用ターゲット枚数 — 重なり軽減のため 60 */
+export const TARGET_IMAGE_COUNT = 60;
+export const MAX_IMAGE_COUNT = 60;
 
 /** 探索ワールド仮想サイズ（visualConfig.world と同期） */
 export const WORLD_WIDTH = 3000;
 export const WORLD_HEIGHT = 2200;
 
 /** 配置時のワールド端マージン（visualConfig.world.margin と同期） */
-export const WORLD_MARGIN = 88;
+export const WORLD_MARGIN = 64;
 
 /** パン慣性（デバッグ調整用） */
 export const INERTIA_FRICTION = 0.9;
 export const INERTIA_MIN_VELOCITY = 0.4;
 
-/** タップ判定（CSS px — キオスクの指ブレを許容） */
-export const TAP_MOVE_THRESHOLD_PX = 16;
-export const TAP_MAX_DURATION_MS = 500;
+/** タップ判定（CSS px — idle/camera 微動を許容） */
+export const TAP_MOVE_THRESHOLD_PX = 18;
+export const TAP_MAX_DURATION_MS = 650;
 
 /** この距離未満はパン開始しない（タップ誤判定・微パン防止） */
 export const PAN_START_THRESHOLD_PX = 14;

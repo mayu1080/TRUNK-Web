@@ -26,13 +26,16 @@ npm install
 npm run dev
 ```
 
-ブラウザ: **`http://localhost:5175/`**
+ブラウザ: **`http://localhost:5175/`**（E — object-flow）
 
-| デモ | ポート |
-|------|--------|
-| DB Pixi | 5173 |
-| DA DOM UI | 5174 |
-| **DD** | **5175** |
+| デモ | ポート | 内容 |
+|------|--------|------|
+| DB Pixi | 5173 | 探索コア |
+| DA DOM UI | 5174 | Motion UI |
+| **DD** | **5175** | E object-flow |
+| **DE** | **5176** | E-2 camera-navigation（`npm run demo:de`） |
+
+DD と DE は同時起動して比較できます。
 
 ## キーボード（デモ共通仕様 — 削除しない）
 
@@ -75,8 +78,9 @@ debug モードで tone preset・visual preset・FPS・ヒットテスト等を�
 `src/visualConfig.ts` で調整。右下セレクトで切替:
 
 - **clean** — 表現ほぼ OFF（DB 寄り）
-- **cultish-soft** — デフォルト。控えめなノイズ・深度・浮遊
+- **cultish-soft** — デフォルト。控えめなノイズ・深度・浮遊（ぱきっとした soft-mono）
 - **cultish-heavy** — ノイズ・パララックス・浮遊を強め
+- **soft-tint** — DF 寄り。輝度グレースケール + 暖色ティント（tone preset 非適用）
 
 ## 操作方法
 

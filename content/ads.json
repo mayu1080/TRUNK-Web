@@ -1,0 +1,14 @@
+{
+  "contentId": "ad-wall",
+  "adMode": "four-screen-synced-content",
+  "loop": true,
+  "sync": "shared-clock",
+  "durationMs": 15000,
+  "fatalIfMissing": false,
+  "tracks": [
+    { "monitorId": 1, "file": "ads/monitor-1.mp4" },
+    { "monitorId": 2, "file": "ads/monitor-2.mp4" },
+    { "monitorId": 3, "file": "ads/monitor-3.mp4" },
+    { "monitorId": 4, "file": "ads/monitor-4.mp4" }
+  ]
+}

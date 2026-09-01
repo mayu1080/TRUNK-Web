@@ -35,9 +35,25 @@ function assertCategories(categories: unknown): asserts categories is Category[]
   if (!Array.isArray(categories) || categories.length === 0) {
     throw formatContentError('CATEGORIES_INVALID', 'must be a non-empty array');
   }
-  for (const c of categories) {
+  for (const raw of categories) {
+    const c = raw as Category;
     if (!c.id || !c.label || !c.imageDir || typeof c.order !== 'number') {
       throw formatContentError('CATEGORIES_INVALID', `invalid entry: ${JSON.stringify(c)}`);
+    }
+    if (c.contentFolders !== undefined) {
+      if (!Array.isArray(c.contentFolders) || c.contentFolders.some((name) => typeof name !== 'string')) {
+        throw formatContentError('CATEGORIES_INVALID', `${c.id}: contentFolders must be an array of strings`);
+      }
+    }
+    if (c.contentFolderLabels !== undefined) {
+      if (
+        !c.contentFolderLabels ||
+        typeof c.contentFolderLabels !== 'object' ||
+        Array.isArray(c.contentFolderLabels) ||
+        Object.values(c.contentFolderLabels).some((value) => typeof value !== 'string')
+      ) {
+        throw formatContentError('CATEGORIES_INVALID', `${c.id}: contentFolderLabels must be a string map`);
+      }
     }
   }
 }

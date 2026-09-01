@@ -1,0 +1,82 @@
+{
+  "doc": "production-content-schema",
+  "version": "0.1",
+  "date": "2026-08-29",
+  "phase": 0,
+  "contentRoot": {
+    "development": "./content",
+    "packaged": "{execDir}/content",
+    "overrideEnv": "TRUNK_CONTENT_ROOT"
+  },
+  "tree": {
+    "manifest.json": true,
+    "monitor-layout.json": "location-open",
+    "ads.json": "phase-2-binding",
+    "animation.json": "phase-2-binding",
+    "categories.json": true,
+    "products.json": "retained-not-primary-for-category-modal",
+    "image-details.json": "phase-5.7-proposal-image-copy",
+    "ads/": ["monitor-1.mp4", "monitor-2.mp4", "monitor-3.mp4", "monitor-4.mp4"],
+    "animation/": ["monitor-1.mp4", "monitor-2.mp4", "monitor-3.mp4", "monitor-4.mp4"],
+    "images/list/": "product-list-primary",
+    "images/{category}/": "shared-with-list-and-modal-fallback",
+    "categories/": "optional-future-split",
+    "products/": "optional",
+    "Logo/": "image-zoom-and-category-modal-only",
+    "thumbs/": "optional"
+  },
+  "listImageResolution": [
+    "assetIndex.listImages",
+    "content/images/list",
+    "recursive-scan content/images if list empty"
+  ],
+  "category": {
+    "required": ["id", "label", "title", "order"],
+    "optional": ["description", "imageDir", "imageIds"],
+    "descriptionMayBeEmpty": true,
+    "example": {
+      "id": "food",
+      "label": "Food",
+      "title": "TOKYO FOOD",
+      "description": "",
+      "imageIds": ["food_grill_01"]
+    },
+    "imageIdsEmptyFallback": [
+      "files-in-imageDir",
+      "list-sources-with-matching-categoryId",
+      "empty-ui"
+    ]
+  },
+  "logo": {
+    "dir": "content/Logo",
+    "usedOn": ["IMAGE_ZOOM", "CATEGORY_MODAL"],
+    "usedOnList": false,
+    "pickOrder": [".png", ".svg", ".jpg", ".jpeg"],
+    "missing": "warn-and-render-without-logo"
+  },
+  "ads": {
+    "preferred": "convention-paths-or-ads.json",
+    "sync": "shared-clock",
+    "loop": true
+  },
+  "animation": {
+    "skipOnTouch": false,
+    "endPolicy": "duration"
+  },
+  "validation": [
+    "content-root-exists",
+    "manifest-parse",
+    "categories-array",
+    "four-ad-files",
+    "four-animation-files",
+    "list-images-policy-open-if-zero",
+    "imageIds-exist-or-warn"
+  ],
+  "openQuestions": [
+    "zero-list-images-fatal",
+    "missing-video-fatal",
+    "layout-json-location",
+    "logo-fixed-filename",
+    "stable-image-ids"
+  ]
+}

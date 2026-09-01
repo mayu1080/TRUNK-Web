@@ -10,8 +10,11 @@ function isImageFile(fileName: string): boolean {
   return IMAGE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
 }
 
-function scanListImages(contentRoot: string, listDirRelative: string): ListImageEntry[] {
+export function scanListImages(contentRoot: string, listDirRelative: string): ListImageEntry[] {
   const listDir = resolveContentPath(contentRoot, listDirRelative);
+  if (!fs.existsSync(listDir) || !fs.statSync(listDir).isDirectory()) {
+    return [];
+  }
   const files = fs
     .readdirSync(listDir)
     .filter((f) => !f.startsWith('.') && isImageFile(f))

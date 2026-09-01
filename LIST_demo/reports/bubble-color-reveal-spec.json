@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "title": "Bubble Color Reveal 仕様・設定値",
+    "version": "1.0",
+    "created": "2026-07-11",
+    "source": "Test_TRUNK (ai_playground/Test_TRUNK)",
+    "specDoc": "LIST_demo/reports/bubble-color-reveal-spec.md",
+    "rendererDecision": "未確定",
+    "scope": "仕様整理のみ。実装・DF/DD/DE変更・本番反映は対象外"
+  },
+  "currentImplementation": {
+    "stack": "single index.html (HTML + CSS + inline JS)",
+    "framework": "none",
+    "structure": {
+      "viewport": "#viewport",
+      "world": "#world",
+      "grayscaleLayer": "#bg-gray",
+      "colorLayer": "#color-layer",
+      "bubbleUi": "#bubble"
+    },
+    "revealTechnique": "css-clip-path-circle-on-color-layer",
+    "grayscaleTechnique": "css-filter-grayscale-100",
+    "input": {
+      "touch": true,
+      "mouse": false,
+      "pointerEvents": false
+    },
+    "gestures": {
+      "showBubble": "2-finger touchstart",
+      "moveBubble": "1-finger touchmove while active",
+      "pinchZoom": "2-finger touchmove",
+      "hideBubble": "3-finger touchstart while active",
+      "edgeAutoPan": "rAF while bubble active near screen edge"
+    },
+    "coordinateFormula": {
+      "screenToWorld": "world = camera + screen / worldScale",
+      "worldTransform": "translate(-camera * worldScale) scale(worldScale)",
+      "revealRadiusWorld": "bubbleRadius / worldScale",
+      "bubbleUi": "screen-fixed; left/top = screen - bubbleRadius"
+    }
+  },
+  "existingValues": {
+    "worldWidth": 3000,
+    "worldHeight": 1800,
+    "minScale": 0.7,
+    "maxScale": 2.4,
+    "bubbleSize": 250,
+    "bubbleRadius": 125,
+    "edgeThresholdRatio": 0.12,
+    "panSpeedBase": 10,
+    "panSpeedFormula": "panSpeedBase / worldScale",
+    "edgeThresholdFormula": "Math.min(viewportWidth, viewportHeight) * edgeThresholdRatio",
+    "photoCss": {
+      "width": 520,
+      "height": 360
+    },
+    "notes": [
+      "reveal radius equals bubbleRadius (not independently configurable)",
+      "no offsetX/Y, followSmoothing, or hideDelayMs",
+      "no dedicated 1-finger world pan; only edge auto-pan"
+    ]
+  },
+  "recommendedBubbleConfig": {
+    "enabled": true,
+    "sizePx": 250,
+    "revealRadiusPx": 125,
+    "offsetX": 0,
+    "offsetY": 0,
+    "followSmoothing": 0.18,
+    "hideDelayMs": 600,
+    "edgeAutoPanEnabled": true,
+    "edgeThresholdRatio": 0.12,
+    "panSpeedBase": 10,
+    "minScale": 0.7,
+    "maxScale": 2.4
+  },
+  "parameterClassification": {
+    "existsInTest": [
+      "bubbleSize",
+      "edgeThresholdRatio",
+      "panSpeedBase",
+      "minScale",
+      "maxScale",
+      "worldWidth",
+      "worldHeight"
+    ],
+    "recommendedFuture": [
+      "enabled",
+      "sizePx",
+      "revealRadiusPx",
+      "offsetX",
+      "offsetY",
+      "followSmoothing",
+      "hideDelayMs",
+      "edgeAutoPanEnabled",
+      "showGesture",
+      "hideGesture",
+      "activeOnlyWhileContact"
+    ],
+    "outOfInitialScope": [
+      "maxBubbles",
+      "distortion",
+      "afterimage",
+      "physicsBubble"
+    ]
+  },
+  "uxTechAgnostic": {
+    "defaultSpace": "grayscale",
+    "bubbleFollowsPointer": true,
+    "colorOnlyInsideBubble": true,
+    "sizeConfigurableInPx": true,
+    "revealRadiusConfigurableInPx": true,
+    "offsetConfigurable": true,
+    "bubbleMustNotBlockHitTesting": true,
+    "multiBubble": "out of initial scope",
+    "distortionAfterimagePhysics": "later phase"
+  },
+  "productListConflictGates": {
+    "bubbleAllowedWhen": [
+      "screenState === PRODUCT_LIST",
+      "categoryDrawer !== open",
+      "IMAGE_ZOOM closed",
+      "bubbleConfig.enabled === true"
+    ],
+    "interactions": {
+      "tap": "bubble pointer-events none; short tap may open IMAGE_ZOOM",
+      "dragPan": "priority vs bubble-follow is undecided",
+      "pinch": "explore zoom wins; bubble may follow pinch center",
+      "IMAGE_ZOOM": "disable bubble while open",
+      "categoryDrawer": "disable or restrict bubble while open",
+      "bubbleFollow": "PRODUCT_LIST explore only"
+    }
+  },
+  "rendererApproaches": {
+    "A_domClipPath": {
+      "layers": ["grayscale img layer", "color img layer + clip-path", "DOM bubble UI"],
+      "productionFit": "prototype / reference only; weak for 40-70 images"
+    },
+    "B_pixi": {
+      "options": ["Graphics circular mask on color sprites", "custom filter/shader mix", "render texture mask"],
+      "bubbleUi": "DOM recommended",
+      "productionFit": "aligned if Pixi is main LIST renderer"
+    },
+    "C_three": {
+      "options": ["screen-space shader mix", "dual plane + stencil/mask", "Raycaster world-space circle"],
+      "bubbleUi": "DOM recommended",
+      "productionFit": "aligned if Three is main LIST renderer"
+    }
+  },
+  "openDecisions": [
+    "main renderer (Pixi vs Three vs other)",
+    "reveal radius rule: constant in screen space vs world space",
+    "show/hide trigger model",
+    "1-finger: pan vs bubble-follow priority",
+    "separate sizePx and revealRadiusPx",
+    "keep edge auto-pan in production",
+    "official PC pointer support for development"
+  ],
+  "recommendedStandaloneDemoScope": {
+    "include": [
+      "grayscale space + single bubble color reveal",
+      "DOM bubble UI",
+      "screen↔world debug",
+      "live bubbleConfig tuning",
+      "follow + pinch coexistence",
+      "edge auto-pan toggle",
+      "FPS / rough cost readout",
+      "stub gates for ZOOM/drawer"
+    ],
+    "exclude": [
+      "multi bubble",
+      "distortion / physics / afterimage",
+      "full IMAGE_ZOOM / drawer",
+      "production assetIndex wiring",
+      "4-monitor sync",
+      "audio",
+      "app/ integration",
+      "DF/DD/DE modifications"
+    ]
+  }
+}

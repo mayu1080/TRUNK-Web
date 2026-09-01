@@ -123,8 +123,9 @@ body,
 
 /* --- review mode chrome --- */
 .app.review-mode .hamburger {
-  top: 20px;
+  top: 50%;
   right: 20px;
+  transform: translateY(-50%);
   width: 52px;
   height: 52px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -132,6 +133,10 @@ body,
   background: rgba(12, 12, 12, 0.55);
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+.app.review-mode .hamburger:active {
+  transform: translateY(-50%) scale(0.96);
 }
 
 .app.review-mode .hamburger span.hamburger-bar {
@@ -173,13 +178,18 @@ body,
 }
 
 .app.debug-mode .hamburger {
-  top: 44px;
+  top: 50%;
   right: 12px;
+  transform: translateY(-50%);
   width: 56px;
   height: 56px;
   border: 1px solid #666;
   border-radius: 10px;
   background: rgba(28, 28, 28, 0.95);
+}
+
+.app.debug-mode .hamburger:active {
+  transform: translateY(-50%) scale(0.96);
 }
 
 .loading-badge {
@@ -537,13 +547,16 @@ body,
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  /* コンテンツ塊を画面中央よりやや上へ */
+  padding-bottom: 12vh;
 }
 
 .drawer-header {
   position: relative;
-  padding: 28px 24px 20px;
-  padding-right: 72px;
+  padding: 28px 72px 20px 24px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: center;
 }
 
 .drawer-eyebrow {
@@ -562,7 +575,7 @@ body,
 }
 
 .drawer-list {
-  flex: 1;
+  flex: 0 1 auto;
   overflow: auto;
   padding: 12px 0 24px;
 }
@@ -570,14 +583,15 @@ body,
 .drawer-item {
   display: flex;
   align-items: center;
+  justify-content: center;
   min-height: 60px;
-  padding: 0 28px;
+  padding: 0 72px 0 28px;
   font-size: 17px;
   letter-spacing: 0.04em;
   border: none;
   background: transparent;
   width: 100%;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   touch-action: manipulation;
   color: rgba(0, 0, 0, 0.72);

@@ -1,0 +1,27 @@
+{
+  "doc": "production-content-intake",
+  "version": "0.1",
+  "date": "2026-08-29",
+  "phase": 3.5,
+  "listResolution": [
+    "assetIndex.listImages",
+    "content/images/list",
+    "recursive-scan content/images if list empty"
+  ],
+  "supportedExtensions": [".png", ".jpg", ".jpeg", ".webp"],
+  "legacyExtensions": [".gif", ".svg"],
+  "discouragedExtensions": [".heic", ".heif", ".tif", ".tiff", ".psd", ".ai", ".pdf", ".bmp"],
+  "filename": {
+    "recommended": "ASCII alnum hyphen underscore dot, max 80 chars",
+    "japanese": "warning-not-fatal"
+  },
+  "targetDisplayedCount": 70,
+  "sizeWarnings": {
+    "longEdgeWarningPx": 2500,
+    "longEdgeStrongWarningPx": 4000,
+    "fileSizeWarningBytes": 8388608
+  },
+  "fatalOnValidation": false,
+  "checkCommand": "npm run check:production-content",
+  "checkExit1": ["content-root-missing", "images-dir-missing"]
+}

@@ -6,7 +6,7 @@
  *   B tapReaction   … タップ確定直後、選択画像の pre-ZOOM 反応
  *   C imageZoomOpen … DOM IMAGE_ZOOM（scrim + 白カード）の開閉
  *   D drawer        … categoryDrawer パネル + 背面 scrim
- *   E depthFlow     … ループ型 flowDepth（奥→手前→respawn / 単一 imageContainer）
+ *   E depthFlow     … object-flow（奥→手前ループ）/ E-2 camera-navigation
  *
  * 主な参照先:
  *   idle        → pixi/idleMotion.ts, pixi/exploreScene.ts
@@ -20,6 +20,9 @@
  */
 
 export type EasingBezier = readonly [number, number, number, number];
+
+/** E: 画像自走 / E-2: カメラ奥行きナビゲーション */
+export type DepthFlowMode = 'object-flow' | 'camera-navigation';
 
 /** drawer 等 — Framer Motion / Pixi 汎用 ease-out */
 export const EASE_OUT_CUBIC: EasingBezier = [0.33, 1, 0.68, 1];
@@ -155,14 +158,14 @@ export interface MotionConfig {
   };
 
   /**
-   * E — ループ型 depth flow（単一 imageContainer / パララックスなし）
-   * depthFlowMotion.ts → applyExploreView
-   * 速度変更: Shift+ホイール（gestureController）→ depthFlowSpeed.ts
+   * E / E-2 — depth（単一 imageContainer / パララックスなし）
+   * object-flow: depthFlowMotion.ts + depthFlowSpeed.ts
+   * camera-navigation: cameraDepth.ts + cameraDepthMotion.ts
    */
   depthFlow: {
     enabled: boolean;
-    /** デバッグ表示用 — 実装モード */
-    mode: 'looping';
+    /** E: object-flow / E-2: camera-navigation */
+    depthMode: DepthFlowMode;
     /** flowDepth 基本速度 [1/秒] — 0.015 ≈ 66秒で奥→手前 */
     baseSpeed: number;
     /** 初期 speedMultiplier（ランタイムは depthFlowSpeed.ts） */
@@ -194,6 +197,46 @@ export interface MotionConfig {
     hitTestMinAlpha: number;
     /** @deprecated 常に false — 親 container 付け替えなし */
     reparentLayers: false;
+  };
+
+  /**
+   * E-2 — 疑似3Dカメラ + 時間軸ドリフト
+   * cameraZ: 空間固定 / Shift+ホイール: sceneTimeScale（時間加速・減速）
+   */
+  cameraDepth: {
+    enabled: boolean;
+    /** 空間カメラ Z（固定） */
+    initialZ: number;
+    smoothing: number;
+    focalLength: number;
+    minSceneZ: number;
+    maxSceneZ: number;
+    /**
+     * 奥行き表示（relativeZ = sceneZ - cameraZ、大きいほど奥）
+     * 奥〜中: alpha=1（弱ブラー可・ヒット可）
+     * 手前: フェードアウト（ヒット不可）
+     */
+    clearZoneFar: number;
+    clearZoneNear: number;
+    /** @deprecated 奥も不透明。互換のため残し常に 1 想定 */
+    approachAlpha: number;
+    approachBandFar: number;
+    nearFadeStart: number;
+    nearFadeEnd: number;
+    farFadeStart: number;
+    farFadeEnd: number;
+    /** フェードアウト中のみ除外（はっきり／奥ブラーはヒット可） */
+    hitTestMinAlpha: number;
+    /** 基準 sceneZ 奥→手前ドリフト [unit/s]（× sceneTimeScale） */
+    sceneDriftSpeed: number;
+    sceneDriftVariance: number;
+    initialTimeScale: number;
+    minTimeScale: number;
+    maxTimeScale: number;
+    /** Shift+上: 時間加速倍率 */
+    timeWheelFastScale: number;
+    /** Shift+下: 巻き戻し倍率（方向反転） */
+    timeWheelRewindScale: number;
   };
 
   /**
@@ -276,7 +319,7 @@ export const MOTION_CONFIG: MotionConfig = {
   },
   depthFlow: {
     enabled: true,
-    mode: 'looping',
+    depthMode: 'object-flow',
     /** flowDepth 基本速度 [1/秒] — 0.041 ≈ 24秒で奥→手前（×multiplier） */
     baseSpeed: 0.041,
     speedMultiplier: 1,
@@ -286,10 +329,10 @@ export const MOTION_CONFIG: MotionConfig = {
     wheelStepFactor: 3.75,
     /** far → midFar → midNear → near */
     scaleByStage: [0.58, 0.74, 0.96, 1.24],
-    alphaByStage: [0.16, 0.32, 0.68, 1],
+    alphaByStage: [0.32, 0.48, 0.72, 1],
     brightnessByStage: [0.72, 0.8, 0.95, 1.1],
     contrastByStage: [0.88, 0.93, 0.99, 1.06],
-    blurByStage: [3.6, 2.2, 0.85, 0],
+    blurByStage: [2.4, 1.6, 0.7, 0],
     fadeInStart: 0.02,
     fadeInEnd: 0.14,
     fadeOutStart: 0.82,
@@ -298,8 +341,37 @@ export const MOTION_CONFIG: MotionConfig = {
     motionDistanceMax: 80,
     spawnPaddingX: 200,
     spawnPaddingY: 160,
-    hitTestMinAlpha: 0.18,
+    hitTestMinAlpha: 0.08,
     reparentLayers: false,
+  },
+  cameraDepth: {
+    enabled: true,
+    initialZ: 1200,
+    smoothing: 0.12,
+    focalLength: 900,
+    minSceneZ: 400,
+    maxSceneZ: 2600,
+    /** 奥ブラー帯の境界（これより奥は弱ブラー、alpha は 1） */
+    clearZoneFar: 1050,
+    clearZoneNear: 140,
+    approachAlpha: 1,
+    approachBandFar: 1750,
+    /** フェードアウト（clearZoneNear より手前） */
+    nearFadeStart: 140,
+    nearFadeEnd: -300,
+    farFadeStart: 2000,
+    farFadeEnd: 2700,
+    /** 検証用に緩め（完全不可視のみ除外） */
+    hitTestMinAlpha: 0.08,
+    /** 基準 sceneZ 奥→手前ドリフト [unit/s] — タップしやすいよう控えめ */
+    sceneDriftSpeed: 28,
+    sceneDriftVariance: 0.14,
+    initialTimeScale: 1,
+    minTimeScale: 0.25,
+    /** Shift ブースト上限 — 1 notch あたりの進量を強めに（28×16 ≈ 旧感のさらに上） */
+    maxTimeScale: 16,
+    timeWheelFastScale: 16,
+    timeWheelRewindScale: 16,
   },
   drawer: {
     widthPx: 320,

@@ -1,0 +1,216 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-08-18",
+  "demoDate": "2026-08-20",
+  "title": "8/20 single-monitor demo plan",
+  "docPath": "docs/0820-demo/single-monitor-demo-plan.md",
+  "frozenReferencePath": "docs/0820-demo/category-drawer-frozen-reference.md",
+  "scope": {
+    "includes": ["plan and policy only", "frozen reference docs"],
+    "excludes": [
+      "app/ implementation",
+      "DI/DF/DE/DD/DB/DA code changes",
+      "exe packaging requirement",
+      "4-monitor sync",
+      "PRODUCT_DETAIL full implementation",
+      "CategoryDrawer redesign"
+    ]
+  },
+  "purpose": {
+    "what": "Confirm and present PRODUCT_LIST experience on one 55in portrait touch monitor",
+    "not": "Full production 4-monitor reproduction",
+    "mustShow": [
+      "Three.js LIST space",
+      "Bubble Color Reveal",
+      "tap → IMAGE_ZOOM → close → LIST",
+      "CategoryDrawer (DI-faithful)",
+      "category select → PRODUCT_DETAIL placeholder → close → LIST",
+      "single Electron app screen flow",
+      "WinTouch UX"
+    ]
+  },
+  "environment": {
+    "runtime": "Electron development start (exe not required)",
+    "os": "Windows",
+    "input": "WinTouch",
+    "experienceMonitor": "one 55in portrait touch",
+    "watchMonitor": "dev only (Debug/DevTools), not production admin spec",
+    "fourMonitorSync": false,
+    "monitorCount": 1,
+    "designViewportCss": { "width": 1080, "height": 1920 },
+    "uiScale": "clamp(min(innerWidth/1080, innerHeight/1920), 0.75, 2.0)",
+    "pixelRatioCap": 2,
+    "debugRequired": [
+      "window.innerWidth",
+      "window.innerHeight",
+      "devicePixelRatio",
+      "canvas css size",
+      "drawingBufferWidth",
+      "drawingBufferHeight",
+      "uiScale",
+      "fps",
+      "realImageCount",
+      "displayedImageCount",
+      "duplicatedCount",
+      "instanceId",
+      "sourceImageId",
+      "bubble sizePx",
+      "bubble revealRadiusPx",
+      "screenState"
+    ],
+    "reviewDefault": true,
+    "debugKeys": { "toggle": ["g", "d"], "review": "r" }
+  },
+  "requiredTransitions": [
+    { "from": "TOP", "to": "ANIMATION", "visual": "placeholder ok" },
+    { "from": "ANIMATION", "to": "PRODUCT_LIST", "visual": "placeholder ok" },
+    { "from": "PRODUCT_LIST", "to": "IMAGE_ZOOM", "trigger": "image tap" },
+    { "from": "IMAGE_ZOOM", "to": "PRODUCT_LIST", "trigger": "close" },
+    { "from": "PRODUCT_LIST", "ui": "categoryDrawer open", "trigger": "hamburger" },
+    { "from": "categoryDrawer open", "ui": "categoryDrawer closed", "trigger": "hamburger × or scrim" },
+    { "from": "PRODUCT_LIST", "to": "PRODUCT_DETAIL", "trigger": "category select", "visual": "placeholder ok" },
+    { "from": "PRODUCT_DETAIL", "to": "PRODUCT_LIST", "trigger": "close" }
+  ],
+  "canvasLifetime": {
+    "duringImageZoom": "keep mounted; disable interaction and bubble",
+    "duringProductDetail": "hide or freeze ok for 8/20; dispose not required",
+    "onTop": "dispose ok"
+  },
+  "portFromDi": {
+    "yes": [
+      "Three perspective LIST",
+      "drag pan",
+      "Raycaster tap",
+      "IMAGE_ZOOM overlay wiring",
+      "DOM BubbleOverlay SVG pointer-events none",
+      "screen-space reveal shader",
+      "bubble follow",
+      "gates on zoom/drawer/detail",
+      "CategoryDrawer visuals",
+      "Review/Debug split"
+    ],
+    "partial": ["wheel/Shift+wheel (dev only; pinch for kiosk)"],
+    "no": [
+      "copy DI folder into app/",
+      "Vite /content middleware",
+      "DI mock image fallback as primary path",
+      "customer-facing DemoBanner/presets"
+    ]
+  },
+  "bubble": {
+    "initialFromDi": {
+      "sizePx": 320,
+      "revealRadiusPx": 160,
+      "followSmoothing": 0.18,
+      "hideDelayMs": 600,
+      "revealMode": "shader",
+      "motion": "elegant"
+    },
+    "adjustableOn55in": true,
+    "allowedWhen": "screenState===PRODUCT_LIST && drawer closed",
+    "stoppedWhen": ["IMAGE_ZOOM", "categoryDrawer open", "PRODUCT_DETAIL"],
+    "visibleInReviewMode": true
+  },
+  "categoryDrawerPolicy": {
+    "frozenReference": "docs/0820-demo/category-drawer-frozen-reference.md",
+    "redesignForbidden": true,
+    "passCriterion": "looks like DI, not newly designed",
+    "allowedWiringDelta": "select navigates to PRODUCT_DETAIL placeholder and closes drawer"
+  },
+  "imageExpansion": {
+    "targetCardCount": 70,
+    "shortfallIsNotFatal": true,
+    "duplicateAllowed": true,
+    "thumbRequiredInProduction": true,
+    "thumbRequiredFor0820": false,
+    "ids": {
+      "instanceId": "unique per displayed card; used for selection/hit",
+      "sourceImageId": "assetIndex.listImages id",
+      "imageZoomUses": "source url via sourceImageId"
+    },
+    "zeroRealImages": "error or explicit empty state",
+    "debug": ["realImageCount", "displayedImageCount", "duplicatedCount"]
+  },
+  "recommendedLayout": {
+    "newRenderer": "app/renderer/demo-0820/",
+    "keep": ["content layer", "transitions.ts", "stateCoordinator", "state-dev.html"],
+    "env": ["TRUNK_DEMO=0820", "TRUNK_MONITOR_COUNT=1"],
+    "doNotModify": ["LIST_demo demos", "DF", "DE", "DD", "DB", "DA"]
+  },
+  "packagesLikelyNeeded": ["react", "react-dom", "three", "framer-motion"],
+  "packagesNote": "Do not add until implementation phase confirmation",
+  "phases": [
+    { "id": 0, "name": "Plan + Frozen Reference", "status": "done in this document set" },
+    { "id": 1, "name": "Add 8/20 single-monitor demo mode", "items": ["Electron 1 window", "screenState skeleton", "TOP/ANIMATION placeholders"] },
+    { "id": 2, "name": "Connect Three LIST + Bubble to PRODUCT_LIST", "items": ["1 canvas", "DI bubble/shader"] },
+    { "id": 3, "name": "Expand content images to ~70 cards", "items": ["getAssetIndex", "getContentFileUrl", "instanceId"] },
+    { "id": 4, "name": "tap → IMAGE_ZOOM → close", "items": ["keep canvas", "stop bubble"] },
+    { "id": 5, "name": "Reproduce CategoryDrawer from Frozen Reference", "items": ["no redesign"] },
+    { "id": 6, "name": "select → PRODUCT_DETAIL placeholder", "items": ["close → LIST"] },
+    { "id": 7, "name": "55in portrait WinTouch Debug", "items": ["resolution", "DPR", "bubble size", "pinch"] },
+    { "id": 8, "name": "Launch notes", "output": "docs/0820-demo/launch-notes.md after implementation" }
+  ],
+  "outOfScope": [
+    "production 4-monitor sync",
+    "admin monitor production spec",
+    "PRODUCT_DETAIL full implementation",
+    "Vercel required",
+    "exe required",
+    "CategoryDrawer redesign",
+    "copy DI into app/",
+    "break LIST_demo",
+    "change DF/DE/DD/DB/DA",
+    "finalize production renderer decision solely from this demo"
+  ],
+  "risks": [
+    { "id": "bubbleSize55in", "severity": "high" },
+    { "id": "4kVsFhdCss", "severity": "high" },
+    { "id": "winTouchPointer", "severity": "high" },
+    { "id": "fileProtocolTextures", "severity": "high" },
+    { "id": "electronDevBootDayOf", "severity": "high" },
+    { "id": "instanceIdMixup", "severity": "medium" },
+    { "id": "drawerVisualDrift", "severity": "medium" },
+    { "id": "bubbleVsTapDrag", "severity": "medium" },
+    { "id": "shaderTextureLoad", "severity": "medium" },
+    { "id": "devIdle20s", "severity": "medium" },
+    { "id": "pinchMissing", "severity": "medium" }
+  ],
+  "acceptanceMust": [
+    "Electron dev boot works",
+    "PRODUCT_LIST visible on 55in portrait",
+    "Bubble Color Reveal visible",
+    "tap opens IMAGE_ZOOM",
+    "close returns to PRODUCT_LIST without breaking the scene",
+    "hamburger opens CategoryDrawer looking like DI",
+    "drawer can close",
+    "category select opens PRODUCT_DETAIL placeholder",
+    "PRODUCT_DETAIL close returns to PRODUCT_LIST",
+    "bubble stops during zoom/drawer/detail",
+    "debug shows resolution DPR canvas fps image/card counts",
+    "image shortage does not crash (70 cards)",
+    "no show-stopping input deadlock"
+  ],
+  "openQuestions": [
+    "actual innerWidth/innerHeight/DPR on the 55in unit",
+    "real file count under content/images/list",
+    "whether file:// works with Three TextureLoader in Electron sandbox",
+    "approval to add React/Three/framer-motion for demo-0820",
+    "WinTouch pinch gesture availability",
+    "whether 52px hamburger is acceptable on 55in (do not resize without approval)",
+    "PRODUCT_DETAIL placeholder copy beyond category name + close",
+    "IMAGE_ZOOM body copy: DI zoomContent vs empty"
+  ],
+  "sources": [
+    "LIST_demo/reports/DI-three-bubble-reveal-implementation-report.json",
+    "LIST_demo/reports/production-product-list-integration-plan.md",
+    "LIST_demo/reports/product-list-demo-strategy.json",
+    "docs/screen-flow.json",
+    "docs/architecture.md",
+    "app/shared/transitions.ts",
+    "app/shared/state.ts",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/ui/CategoryDrawer.tsx",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/styles.css",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/motionConfig.ts",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/bubbleConfig.ts"
+  ]
+}

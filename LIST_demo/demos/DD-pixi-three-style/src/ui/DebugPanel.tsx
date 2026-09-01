@@ -1,5 +1,7 @@
 import type { DebugStats } from '../pixi/types';
+import { DEMO_ID, DEMO_URL } from '../demoIdentity';
 import { IMAGE_ZOOM_CARD_DELAY_FRAMES, MOTION_CONFIG } from '../motionConfig';
+import { getSceneTimeWheelDebug } from '../pixi/cameraDepth';
 
 interface DebugPanelProps {
   stats: DebugStats | null;
@@ -26,9 +28,45 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
   const zoomOpenTotalMs = zoom.cardDelayMs + zoom.cardFadeMs;
   const zoomCloseMs = Math.round(zoom.cardFadeMs * 0.85);
 
+  const isCameraNav = stats.depthFlowMode === 'camera-depth-navigation';
+  const cam = MOTION_CONFIG.cameraDepth;
+  const timeDbg = isCameraNav ? getSceneTimeWheelDebug() : null;
+  const depthSection = isCameraNav
+    ? [
+        '--- DD-E2 camera depth / time control ---',
+        `demo: DD-E2-camera-depth-navigation`,
+        `mode: camera-depth-navigation`,
+        `timeControl: ON  objectFlow: OFF  flowSpeedControl: OFF`,
+        `shiftWheel: ${timeDbg?.direction === 'fast' ? 'time forward' : timeDbg?.direction === 'rewind' ? 'time rewind' : 'idle (×1)'}`,
+        `timeScale: ${stats.sceneTimeScale.toFixed(3)}  target: ${stats.targetSceneTimeScale.toFixed(3)}${stats.sceneTimeWheelBoost ? ' (Shift+wheel)' : ''}`,
+        `drift: base ${cam.sceneDriftSpeed} × time → ${stats.effectiveSceneDriftSpeed.toFixed(1)} unit/s`,
+        `boost: forward ×${cam.timeWheelFastScale} / rewind ×${cam.timeWheelRewindScale}  (Shift離す=×1 正向き)`,
+        `last wheel: Δ${timeDbg?.axis}=${timeDbg?.axis === 'x' ? timeDbg?.deltaX.toFixed(1) : timeDbg?.deltaY.toFixed(1)} → ${timeDbg?.direction ?? 'none'}`,
+        `cameraZ: ${stats.cameraZ.toFixed(0)} (空間固定)  lookAt: screen-center`,
+        `focalLength: ${cam.focalLength}  sceneZ: ${cam.minSceneZ}–${cam.maxSceneZ}`,
+        `depth: far=opaque+weakBlur(hit) → clear(hit) → nearFade(no hit)`,
+        `zones: blur>${cam.clearZoneFar}  clear[${cam.clearZoneNear}–${cam.clearZoneFar}]  fade→${cam.nearFadeEnd}`,
+        `hit: until fade-start+grace (relZ≥nearFadeStart-12%)  farClip: ${cam.farFadeStart}→${cam.farFadeEnd}`,
+        `sceneZ respawn: ON (clip抜け後)  count: ${stats.depthFlowRespawnCount}`,
+        `wheel: Shift+↑=加速×${cam.timeWheelFastScale}(奥→手前)  Shift+↓=巻戻×${cam.timeWheelRewindScale}(手前→奥)`,
+      ]
+    : [
+        '--- depth flow (E) ---',
+        `enabled: ${stats.depthFlowEnabled ? 'ON' : 'OFF'}  mode: ${stats.depthFlowMode}  parallax: ${stats.parallaxMode}`,
+        `baseSpeed: ${stats.depthFlowBaseSpeed.toFixed(4)}  speedMult: ${stats.depthFlowSpeedMultiplier.toFixed(2)}  dir: ${stats.depthFlowSpeedDirection > 0 ? '奥→手前' : '手前→奥'}${stats.depthFlowWheelBoost ? ' (Shift+wheel)' : ''}`,
+        `effective: ${stats.depthFlowEffectiveSpeed.toFixed(4)}  step: ×${MOTION_CONFIG.depthFlow.wheelStepFactor} per Shift+wheel`,
+        `last wheel: Δ${stats.depthFlowWheelAxis}=${stats.depthFlowWheelAxis === 'x' ? stats.depthFlowWheelDeltaX.toFixed(1) : stats.depthFlowWheelDeltaY.toFixed(1)} (Δx=${stats.depthFlowWheelDeltaX.toFixed(1)} Δy=${stats.depthFlowWheelDeltaY.toFixed(1)})`,
+        `speed range: ${stats.depthFlowMinSpeedMultiplier}–${stats.depthFlowMaxSpeedMultiplier}  respawns: ${stats.depthFlowRespawnCount}`,
+        `sample: depth=${stats.depthFlowSampleDepth.toFixed(3)} label=${stats.depthFlowSampleLabel} speed=${stats.depthFlowSpeed.toFixed(4)} ord=${stats.depthFlowSampleRenderOrder}`,
+        `4段階 alpha: [${MOTION_CONFIG.depthFlow.alphaByStage.join(', ')}]`,
+        `4段階 blur: [${MOTION_CONFIG.depthFlow.blurByStage.join(', ')}]`,
+        `4段階 scale: [${MOTION_CONFIG.depthFlow.scaleByStage.join(', ')}]`,
+        `wheel: Shift+↑=正×${MOTION_CONFIG.depthFlow.wheelStepFactor}  Shift+↓=逆×${MOTION_CONFIG.depthFlow.wheelStepFactor}  (plain=zoom)`,
+      ];
+
   const configLines = [
-    '=== DD: Pixi + Three風 + DOM ===',
-    'url: http://localhost:5175',
+    `=== ${DEMO_ID}: ${DEMO_ID === 'DE' ? 'Camera Depth (E-2)' : 'Pixi + Three風 + DOM (E)'} ===`,
+    `url: ${DEMO_URL}`,
     `visual preset: ${stats.visualPreset}`,
     `tone preset: ${stats.tonePreset}  bright: ${stats.imageBrightness}  contrast: ${stats.imageContrast}`,
     `noise: ${stats.noiseEnabled ? 'ON' : 'OFF'}  opacity: ${stats.noiseOpacity}`,
@@ -37,17 +75,7 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
     `idle sample: dy=${stats.idleSampleY.toFixed(2)} rot=${stats.idleSampleRotDeg.toFixed(3)}°`,
     `touch reaction: ${stats.touchReactionEnabled ? 'ON' : 'OFF'}  str: ${stats.touchReactionStrength}`,
     '',
-    '--- depth flow (E) ---',
-    `enabled: ${stats.depthFlowEnabled ? 'ON' : 'OFF'}  mode: ${stats.depthFlowMode}  parallax: ${stats.parallaxMode}`,
-    `baseSpeed: ${stats.depthFlowBaseSpeed.toFixed(4)}  speedMult: ${stats.depthFlowSpeedMultiplier.toFixed(2)}  dir: ${stats.depthFlowSpeedDirection > 0 ? '奥→手前' : '手前→奥'}${stats.depthFlowWheelBoost ? ' (Shift+wheel)' : ''}`,
-    `effective: ${stats.depthFlowEffectiveSpeed.toFixed(4)}  step: ×${MOTION_CONFIG.depthFlow.wheelStepFactor} per Shift+wheel`,
-    `last wheel: Δ${stats.depthFlowWheelAxis}=${stats.depthFlowWheelAxis === 'x' ? stats.depthFlowWheelDeltaX.toFixed(1) : stats.depthFlowWheelDeltaY.toFixed(1)} (Δx=${stats.depthFlowWheelDeltaX.toFixed(1)} Δy=${stats.depthFlowWheelDeltaY.toFixed(1)})`,
-    `speed range: ${stats.depthFlowMinSpeedMultiplier}–${stats.depthFlowMaxSpeedMultiplier}  respawns: ${stats.depthFlowRespawnCount}`,
-    `sample: depth=${stats.depthFlowSampleDepth.toFixed(3)} label=${stats.depthFlowSampleLabel} speed=${stats.depthFlowSpeed.toFixed(4)} ord=${stats.depthFlowSampleRenderOrder}`,
-    `4段階 alpha: [${MOTION_CONFIG.depthFlow.alphaByStage.join(', ')}]`,
-    `4段階 blur: [${MOTION_CONFIG.depthFlow.blurByStage.join(', ')}]`,
-    `4段階 scale: [${MOTION_CONFIG.depthFlow.scaleByStage.join(', ')}]`,
-    `wheel: Shift+↑=正×${MOTION_CONFIG.depthFlow.wheelStepFactor}  Shift+↓=逆×${MOTION_CONFIG.depthFlow.wheelStepFactor}  (plain=zoom)`,
+    ...depthSection,
     '',
     '--- IMAGE_ZOOM timeline ---',
     `tap bright: ${tap.riseMs}ms${tap.holdMs > 0 ? ` + hold ${tap.holdMs}ms` : ''} (parallel, scale ${tap.scaleTo === 1 ? 'off' : tap.scaleTo})`,
@@ -76,12 +104,20 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
     `selectedImageId: ${stats.selectedImageId ?? '(none)'}`,
   ];
 
-  if (stats.selectedImageId && stats.selectedFlowDepth != null) {
-    runtimeLines.push(
-      `selected flowDepth: ${stats.selectedFlowDepth.toFixed(3)}  label: ${stats.selectedDepthLabel ?? '—'}`,
-      `selected flowSpeed: ${stats.selectedFlowSpeed?.toFixed(4) ?? '—'}  alpha: ${stats.selectedAlpha?.toFixed(3) ?? '—'}  scale: ${stats.selectedScale?.toFixed(3) ?? '—'}`,
-      `selected renderOrder: ${stats.selectedRenderOrder ?? '—'}`,
-    );
+  if (stats.selectedImageId) {
+    if (isCameraNav) {
+      runtimeLines.push(
+        `selected sceneZ: ${stats.selectedSceneZ?.toFixed(1) ?? '—'}  relativeZ: ${stats.selectedRelativeZ?.toFixed(1) ?? '—'}`,
+        `selected perspective: ${stats.selectedPerspective?.toFixed(4) ?? '—'}  alpha: ${stats.selectedAlpha?.toFixed(3) ?? '—'}  scale: ${stats.selectedScale?.toFixed(3) ?? '—'}`,
+        `selected renderOrder: ${stats.selectedRenderOrder ?? '—'}`,
+      );
+    } else if (stats.selectedFlowDepth != null) {
+      runtimeLines.push(
+        `selected flowDepth: ${stats.selectedFlowDepth.toFixed(3)}  label: ${stats.selectedDepthLabel ?? '—'}`,
+        `selected flowSpeed: ${stats.selectedFlowSpeed?.toFixed(4) ?? '—'}  alpha: ${stats.selectedAlpha?.toFixed(3) ?? '—'}  scale: ${stats.selectedScale?.toFixed(3) ?? '—'}`,
+        `selected renderOrder: ${stats.selectedRenderOrder ?? '—'}`,
+      );
+    }
   }
 
   if (stats.selectedImage) {
@@ -96,27 +132,34 @@ export function DebugPanel({ stats, warnings, lastAction }: DebugPanelProps) {
   if (ht) {
     runtimeLines.push(
       '',
-      '--- hit test ---',
-      `last pointer: client (${ht.clientUpX.toFixed(0)}, ${ht.clientUpY.toFixed(0)})`,
-      `canvas point: (${ht.canvasUpX.toFixed(1)}, ${ht.canvasUpY.toFixed(1)})`,
-      `world point: (${ht.worldUpX.toFixed(1)}, ${ht.worldUpY.toFixed(1)})`,
-      `pointer target: ${ht.pointerTarget}  domBlocksCanvas: ${ht.domBlocksCanvas}`,
-      `elementsFromPoint top: ${ht.elementsFromPointTop}`,
-      `down/up distance: ${ht.moveDistancePx.toFixed(1)}px  duration: ${ht.durationMs.toFixed(0)}ms`,
-      `wasTap: ${ht.wasTap}  wasDragging: ${ht.wasDragging}`,
+      '--- hit debug ---',
+      `hit debug: ${stats.hitTestDebugEnabled ? 'ON' : 'OFF'}`,
+      `last pointerup: ${ht.clientUpX.toFixed(0)}, ${ht.clientUpY.toFixed(0)}`,
+      `pointer local/canvas: ${ht.canvasUpX.toFixed(1)}, ${ht.canvasUpY.toFixed(1)}`,
+      `canvas rect: ${ht.canvasRectLeft.toFixed(0)}, ${ht.canvasRectTop.toFixed(0)} ${ht.canvasRectWidth.toFixed(0)}x${ht.canvasRectHeight.toFixed(0)}`,
+      `renderer resolution: ${ht.rendererResolution.toFixed(2)}`,
+      `moveDistance: ${ht.moveDistancePx.toFixed(1)}px  durationMs: ${ht.durationMs.toFixed(0)}`,
       `tapRejectedReason: ${ht.tapRejectedReason}`,
+      `hitTestExecuted: ${ht.hitTestExecuted}`,
+      `candidates before: ${ht.candidatesBeforeFilter}  after vis: ${ht.candidatesAfterVisibility}`,
+      `after alpha: ${ht.candidatesAfterAlpha}  final: ${ht.candidatesFinal}`,
       `thresholds: move<=${ht.tapMoveThresholdPx}px dur<=${ht.tapMaxDurationMs}ms pan>=${ht.panStartThresholdPx}px`,
-      `hit candidates: ${ht.hitCandidateCount}`,
+      `tapLocked: ${ht.tapLocked}  cooldown remaining: ${ht.cooldownRemainingMs.toFixed(0)}ms`,
+      `overlay blocking: ${ht.overlayBlocking}  domBlocksCanvas: ${ht.domBlocksCanvas}`,
+      `pointer target: ${ht.pointerTarget}  top: ${ht.elementsFromPointTop}`,
     );
     for (const [i, c] of ht.hitCandidates.slice(0, 5).entries()) {
       runtimeLines.push(
-        `  ${i + 1}. ${c.imageId} d=${c.depth.toFixed(2)} ${c.layerId} z=${c.zIndex} ord=${c.renderOrder}`,
+        `  cand ${i + 1}. ${c.imageId} ord=${c.renderOrder} α=${c.alpha.toFixed(2)} bounds=${c.bounds.w.toFixed(0)}x${c.bounds.h.toFixed(0)}`,
       );
     }
     if (ht.hitCandidateCount > 5) {
       runtimeLines.push(`  … +${ht.hitCandidateCount - 5} more`);
     }
-    runtimeLines.push(`chosen imageId: ${ht.chosenImageId ?? '(none)'}`);
+    runtimeLines.push(
+      `chosen imageId: ${ht.chosenImageId ?? '(none)'}`,
+      `chosen renderOrder: ${ht.chosenRenderOrder ?? '—'}  chosen alpha: ${ht.chosenAlpha?.toFixed(2) ?? '—'}`,
+    );
     if (ht.chosenBounds) {
       const b = ht.chosenBounds;
       runtimeLines.push(

@@ -1,0 +1,241 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-07-11",
+  "title": "本番 PRODUCT_LIST 移植計画",
+  "docPath": "LIST_demo/reports/production-product-list-integration-plan.md",
+  "scope": {
+    "includes": ["planning document only"],
+    "excludes": [
+      "app/ code changes",
+      "DI/DF code changes",
+      "PRODUCT_DETAIL full implementation",
+      "productionization work"
+    ]
+  },
+  "sources": [
+    "LIST_demo/reports/DI-three-bubble-reveal-implementation-report.md",
+    "LIST_demo/reports/DI-three-bubble-reveal-implementation-report.json",
+    "LIST_demo/reports/DF-three-camera-depth-implementation-report.md",
+    "LIST_demo/reports/bubble-color-reveal-spec.md",
+    "LIST_demo/reports/DE-vs-DF-comparison-report.md",
+    "LIST_demo/reports/product-list-demo-strategy.md",
+    "docs/architecture.md",
+    "docs/screen-flow.json",
+    "docs/screen-flow.md",
+    "docs/handover.md",
+    "README.md",
+    "app/README.md",
+    "app/shared/idleConfig.ts",
+    "app/shared/state.ts",
+    "app/shared/transitions.ts",
+    "app/electron/state/stateCoordinator.ts",
+    "app/electron/content/*",
+    "app/renderer/idle-timer.js"
+  ],
+  "integrationPolicy": {
+    "copyDiAsIsIntoApp": false,
+    "restructureForProductList": true,
+    "assumeThreeAsMainRenderer": false,
+    "threeStatus": "candidate pending Phase 0 gate",
+    "paths": {
+      "A_three": "Use DI scene/camera/raycaster/shader reveal as LIST core",
+      "B_pixi": "Reuse Bubble DOM/config/gates; reimplement explore+reveal in Pixi"
+    },
+    "sharedAcrossPaths": [
+      "DOM Bubble UI",
+      "bubbleConfig semantics",
+      "ZOOM/drawer/LIST gates",
+      "screen-px reveal radius rule (recommended)"
+    ]
+  },
+  "diVerdict": "条件付き合格",
+  "featuresToPort": {
+    "must": [
+      "explore space (renderer TBD)",
+      "pan / zoom-dolly translation",
+      "image tap hit",
+      "IMAGE_ZOOM wiring",
+      "DOM UI overlays",
+      "Bubble UI",
+      "Bubble color reveal"
+    ],
+    "optionalDevOnly": ["Review/Debug HUD", "visual presets", "hit debug"],
+    "threeSpecific": ["PerspectiveCamera scene", "Raycaster", "onBeforeCompile reveal"]
+  },
+  "reusableFromDi": {
+    "high": [
+      "bubbleConfig",
+      "bubbleAllowed gates",
+      "BubbleOverlay DOM/SVG approach",
+      "elegant glint (no long trail)",
+      "tap threshold learnings"
+    ],
+    "mediumIfThree": [
+      "bubbleRevealShader.ts",
+      "camera/dolly/sceneLayout constants",
+      "Raycaster flow",
+      "pointer→NDC→reveal pipeline"
+    ],
+    "doNotReuseAsIs": [
+      "Vite /content middleware",
+      "DebugPanel/DemoToggles in customer UI",
+      "monolithic ExploreController dump into app/"
+    ]
+  },
+  "mustRewrite": [
+    "asset load → getAssetIndex + getContentFileUrl",
+    "screenState mount/dispose",
+    "categoryDrawer uiState",
+    "IMAGE_ZOOM transitions",
+    "idle 10min reset + TOP dispose",
+    "4-window independence after LIST",
+    "strip Review/Debug from production build"
+  ],
+  "productionConnections": {
+    "TOP": "dispose LIST renderer + textures; bubble off",
+    "ANIMATION": "no bubble; LIST not interactive",
+    "PRODUCT_LIST": "explore canvas + DOM + bubble eligible",
+    "IMAGE_ZOOM": "bubble off; interaction blocked; close → LIST",
+    "categoryDrawer": "bubble off while open; select → PRODUCT_DETAIL",
+    "PRODUCT_DETAIL": "bubble off; close → LIST",
+    "idle10min": {
+      "secondsProduction": 600,
+      "scope": "perMonitor",
+      "resetOn": ["tap", "swipe", "pinch", "scroll"],
+      "recommendCountBubbleMoveAsActivity": true,
+      "onFire": "that monitor only → TOP"
+    },
+    "fourMonitorSync": {
+      "syncedPath": ["TOP", "ANIMATION", "PRODUCT_LIST"],
+      "afterList": "independent",
+      "syncBubbleState": false
+    },
+    "contentLayer": "Main startup assetIndex; no FS in renderer",
+    "trunkLogo": "decorative only; no handlers"
+  },
+  "interactionConflicts": {
+    "tapVsBubble": "bubble pointer-events none; short tap → ZOOM",
+    "dragVsCamera": "one-finger pan; bubble follows",
+    "pinchVsDolly": "pinch owns zoom; bubble subordinate",
+    "zoomOpen": "bubble stop",
+    "drawerOpen": "bubble stop",
+    "touchShowModel": " undecided; prefer contact-only on kiosk"
+  },
+  "phases": [
+    {
+      "id": 0,
+      "name": "Gate",
+      "items": ["confirm main renderer", "confirm bubble radius rule", "confirm touch trigger", "kiosk size OK"]
+    },
+    {
+      "id": 1,
+      "name": "Connect WebGL canvas to PRODUCT_LIST",
+      "items": ["mount/dispose by screenState", "1 canvas", "DOM chrome"]
+    },
+    {
+      "id": 2,
+      "name": "Wire content images",
+      "items": ["assetIndex listImages", "getContentFileUrl", "texture lifecycle"]
+    },
+    {
+      "id": 3,
+      "name": "Camera + hit",
+      "items": ["pan/pinch", "tap hit", "idle reset hooks"]
+    },
+    {
+      "id": 4,
+      "name": "IMAGE_ZOOM",
+      "items": ["transitions", "overlay", "bubble/interaction off while open"]
+    },
+    {
+      "id": 5,
+      "name": "Bubble UI",
+      "items": ["DOM overlay", "follow", "gates"]
+    },
+    {
+      "id": 6,
+      "name": "Color reveal",
+      "items": ["Three shader OR Pixi filter/mask", "screen-px radius"]
+    },
+    {
+      "id": 7,
+      "name": "Drawer / sleep / 4-monitor",
+      "items": ["drawer gates", "idle TOP", "no bubble IPC sync"]
+    },
+    {
+      "id": 8,
+      "name": "Debug cleanup",
+      "items": ["strip customer debug", "dev-only HUD"]
+    }
+  ],
+  "risks": [
+    { "id": "contextLost", "severity": "high" },
+    { "id": "textureMemory4x70", "severity": "high" },
+    { "id": "fpsThreeOnKiosk", "severity": "medium" },
+    { "id": "pointerConflicts", "severity": "medium" },
+    { "id": "electronGpuStability", "severity": "medium" },
+    { "id": "rendererDecisionReversal", "severity": "high" }
+  ],
+  "openDecisionsForProductionAgent": [
+    {
+      "id": "mainRenderer",
+      "question": "Three.js を PRODUCT_LIST 本採用するか",
+      "recommendation": "Do not start Phase 1 until decided"
+    },
+    {
+      "id": "revealRadiusSpace",
+      "question": "screen固定か world固定か",
+      "recommendation": "screen-fixed (DI)"
+    },
+    {
+      "id": "pinchMapping",
+      "question": "本番 pinch の割当",
+      "recommendation": "explore zoom/dolly; bubble follows or freezes"
+    },
+    {
+      "id": "bubbleShowModel",
+      "question": "常時表示か接触中のみか",
+      "recommendation": "contact-only on touch kiosk"
+    },
+    {
+      "id": "debugInProduction",
+      "question": "Debug/Review の本番扱い",
+      "recommendation": "hidden in customer build"
+    },
+    {
+      "id": "detailKeepsListCanvas",
+      "question": "PRODUCT_DETAIL 中に LIST canvas を残すか",
+      "recommendation": "dispose to save memory"
+    },
+    {
+      "id": "idleCountsBubbleMove",
+      "question": "Bubble 追従を無操作リセットに含めるか",
+      "recommendation": "yes"
+    }
+  ],
+  "preImplementationAcceptance": {
+    "must": [
+      "1 canvas 40-70 images stable",
+      "pan/zoom works",
+      "tap → ZOOM → LIST works",
+      "bubble does not steal hits",
+      "color reveal readable",
+      "bubble stops on ZOOM/drawer",
+      "FPS near target on device"
+    ],
+    "should": [
+      "55in portrait size OK",
+      "touch conflict OK",
+      "long-run context/memory OK",
+      "main renderer decision documented"
+    ],
+    "blocker": "main PRODUCT_LIST renderer undecided"
+  },
+  "currentAppStatus": {
+    "contentLayer": "implemented (Phase 2)",
+    "screenStateTransitions": "shared/transitions skeleton",
+    "idleTimeout": "implemented (600s production)",
+    "fourMonitorSync": "coordinator exists",
+    "productListRendering": "not implemented"
+  }
+}

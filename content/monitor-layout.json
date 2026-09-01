@@ -1,0 +1,50 @@
+{
+  "boundsTolerancePx": 8,
+  "fatalOnBoundsMismatch": false,
+  "monitors": [
+    {
+      "monitorId": 1,
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "orientation": "portrait",
+      "viewportOffsetX": 0,
+      "viewportOffsetY": 0,
+      "scale": 1
+    },
+    {
+      "monitorId": 2,
+      "x": 1080,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "orientation": "portrait",
+      "viewportOffsetX": 1080,
+      "viewportOffsetY": 0,
+      "scale": 1
+    },
+    {
+      "monitorId": 3,
+      "x": 2160,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "orientation": "portrait",
+      "viewportOffsetX": 2160,
+      "viewportOffsetY": 0,
+      "scale": 1
+    },
+    {
+      "monitorId": 4,
+      "x": 3240,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "orientation": "portrait",
+      "viewportOffsetX": 3240,
+      "viewportOffsetY": 0,
+      "scale": 1
+    }
+  ]
+}

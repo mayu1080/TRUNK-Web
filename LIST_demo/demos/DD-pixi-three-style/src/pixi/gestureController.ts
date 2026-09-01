@@ -1,9 +1,15 @@
-import { mapClientDeltaToRenderer, mapClientToRenderer } from './pointerCoords';
+import { mapCanvasCenterToRenderer, mapClientDeltaToRenderer, mapClientToRenderer } from './pointerCoords';
 import type { ExploreView } from './types';
 import {
   applyDepthFlowWheelFromEvent,
   clearDepthFlowWheelBoost,
 } from './depthFlowSpeed';
+import {
+  applySceneTimeWheel,
+  clearSceneTimeWheelBoost,
+  isCameraNavigationMode,
+  isObjectFlowMode,
+} from './cameraDepth';
 import {
   INERTIA_FRICTION,
   INERTIA_MIN_VELOCITY,
@@ -31,6 +37,7 @@ export interface TapGestureProbe {
     | 'none'
     | 'disabled'
     | 'dragging'
+    | 'moved-too-far'
     | 'duration'
     | 'multiPointer';
   tapMoveThresholdPx: number;
@@ -196,8 +203,9 @@ export class GestureController {
 
       if (!this.enabled) {
         tapRejectedReason = 'disabled';
-      } else if (dist >= TAP_MOVE_THRESHOLD_PX || rec.didPan) {
-        tapRejectedReason = 'dragging';
+      } else if (dist >= TAP_MOVE_THRESHOLD_PX) {
+        // didPan だけでは拒否しない（PAN_START < TAP_MOVE のとき誤って drag 扱いになる）
+        tapRejectedReason = 'moved-too-far';
       } else if (duration >= TAP_MAX_DURATION_MS) {
         tapRejectedReason = 'duration';
       } else {
@@ -215,7 +223,7 @@ export class GestureController {
         canvasUpY: canvasUp.y,
         moveDistancePx: dist,
         durationMs: duration,
-        wasDragging: rec.didPan || dist >= TAP_MOVE_THRESHOLD_PX,
+        wasDragging: dist >= TAP_MOVE_THRESHOLD_PX,
         wasTap,
         tapRejectedReason,
         tapMoveThresholdPx: TAP_MOVE_THRESHOLD_PX,
@@ -336,33 +344,43 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-/** ホイール: 通常=ズーム / Shift=Depth Flow 速度（将来ピンチからも同 API） */
+/** ホイール: 通常=ズーム / Shift+E-2=cameraDepth / Shift+E=flow speed */
 export function attachExploreWheel(
   canvas: HTMLCanvasElement,
   getView: () => ExploreView,
   setView: (v: ExploreView) => void,
   isZoomEnabled: () => boolean,
-  isDepthFlowSpeedEnabled: () => boolean,
+  isDepthFlowWheelEnabled: () => boolean,
 ): () => void {
   let shiftHeld = false;
 
   const onWheel = (e: WheelEvent): void => {
-    const depthFlowWheel = (e.shiftKey || shiftHeld) && isDepthFlowSpeedEnabled();
+    const depthFlowWheel = (e.shiftKey || shiftHeld) && isDepthFlowWheelEnabled();
 
     if (depthFlowWheel) {
       e.preventDefault();
-      applyDepthFlowWheelFromEvent(e);
+      if (isCameraNavigationMode()) {
+        applySceneTimeWheel(e);
+      } else if (isObjectFlowMode()) {
+        applyDepthFlowWheelFromEvent(e);
+      }
       return;
     }
 
-    clearDepthFlowWheelBoost();
+    if (isObjectFlowMode()) {
+      clearDepthFlowWheelBoost();
+    } else if (isCameraNavigationMode()) {
+      clearSceneTimeWheelBoost();
+    }
 
     if (!isZoomEnabled()) return;
     e.preventDefault();
     const view = getView();
     const factor = e.deltaY > 0 ? 0.92 : 1.08;
     const newZoom = clamp(view.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    const p = mapClientToRenderer(canvas, e.clientX, e.clientY);
+    const p = isCameraNavigationMode()
+      ? mapCanvasCenterToRenderer(canvas)
+      : mapClientToRenderer(canvas, e.clientX, e.clientY);
     const ratio = newZoom / view.zoom;
     setView({
       zoom: newZoom,
@@ -378,7 +396,11 @@ export function attachExploreWheel(
   const onKeyUp = (e: KeyboardEvent): void => {
     if (e.key === 'Shift') {
       shiftHeld = false;
-      clearDepthFlowWheelBoost();
+      if (isObjectFlowMode()) {
+        clearDepthFlowWheelBoost();
+      } else if (isCameraNavigationMode()) {
+        clearSceneTimeWheelBoost();
+      }
     }
   };
 
@@ -390,6 +412,7 @@ export function attachExploreWheel(
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     clearDepthFlowWheelBoost();
+    clearSceneTimeWheelBoost();
   };
 }
 

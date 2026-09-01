@@ -20,6 +20,16 @@ import {
   setDepthFlowSpeedMultiplier,
 } from './depthFlowSpeed';
 import {
+  getCameraZ,
+  getEffectiveSceneDriftSpeed,
+  getSceneTimeScale,
+  getTargetSceneTimeScale,
+  isCameraNavigationMode,
+  isObjectFlowMode,
+  isSceneTimeWheelBoostActive,
+  resetCameraZ,
+} from './cameraDepth';
+import {
   type HitTestDebugSnapshot,
   logHitTestSnapshot,
   probeDomAtPoint,
@@ -37,6 +47,7 @@ import {
 } from './touchReaction';
 import { clampExploreView, centerViewOnContent } from './worldBounds';
 import { computeIdleMotion } from './idleMotion';
+import { DEMO_ID } from '../demoIdentity';
 import { MOTION_CONFIG } from '../motionConfig';
 import type { AssetLoadResult, DebugStats, ExploreView, HitTestDebugStats, SelectedImageDebug } from './types';
 import type { VisualConfig, VisualPresetId } from '../visualConfig';
@@ -95,6 +106,13 @@ export class ExploreController {
     this.config = getVisualConfig('cultish-soft', DEFAULT_TONE_PRESET);
   }
 
+  private getViewport(): { width: number; height: number } {
+    return {
+      width: this.app?.screen.width ?? this.canvas?.width ?? 1920,
+      height: this.app?.screen.height ?? this.canvas?.height ?? 1080,
+    };
+  }
+
   async init(host: HTMLElement, presetId: VisualPresetId, tonePresetId?: TonePresetId): Promise<void> {
     this.host = host;
     if (tonePresetId) this.tonePresetId = tonePresetId;
@@ -125,6 +143,7 @@ export class ExploreController {
     };
 
     this.scene = await buildExploreScene(this.assetResult.images, this.config);
+    resetCameraZ();
     if (this.destroyed) {
       app.destroy(true, { children: true, texture: true });
       return;
@@ -144,12 +163,12 @@ export class ExploreController {
       this.scene.contentBounds,
     );
     this.exploreView = this.clampView(this.exploreView);
-    applyExploreView(this.scene, this.exploreView, this.config, 0, 0);
+    applyExploreView(this.scene, this.exploreView, this.config, 0, 0, this.getViewport());
 
     this.gesture = new GestureController(canvas, this.exploreView, {
       onViewChange: (view) => {
         this.exploreView = view;
-        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000, 0);
+        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000, 0, this.getViewport());
       },
       onTap: (rx, ry, probe) => void this.handleTap(rx, ry, probe),
       onTapProbe: (probe) => this.recordTapProbe(probe),
@@ -176,7 +195,7 @@ export class ExploreController {
       () => this.exploreView,
       (v) => {
         this.exploreView = this.clampView(v);
-        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000, 0);
+        applyExploreView(this.scene, this.exploreView, this.config, performance.now() / 1000, 0, this.getViewport());
         this.gesture.setView(this.exploreView);
       },
       () => this.interactionEnabled,
@@ -196,7 +215,7 @@ export class ExploreController {
         this.config,
         time,
       );
-      applyExploreView(this.scene, this.exploreView, this.config, time, deltaTime);
+      applyExploreView(this.scene, this.exploreView, this.config, time, deltaTime, this.getViewport());
       this.emitStats();
     });
 
@@ -219,9 +238,14 @@ export class ExploreController {
     if (!this.scene) return;
 
     const time = performance.now() / 1000;
-    applyExploreView(this.scene, this.exploreView, this.config, time, 0);
+    applyExploreView(this.scene, this.exploreView, this.config, time, 0, this.getViewport());
+
+    const now = performance.now();
+    const cooldownRemainingMs = Math.max(0, this.zoomCooldownUntil - now);
+    const hitTestExecuted = probe.wasTap;
 
     const dom = this.lastDomProbeAtDown ?? probeDomAtPoint(probe.clientDownX, probe.clientDownY);
+    // 診断用は常に hit（閾値拒否時も候補を可視化）。選択本体は wasTap 時のみ handleTap。
     const atUp = runHitTestAt(this.scene.world, this.scene.images, probe.canvasUpX, probe.canvasUpY);
     const atDown = runHitTestAt(
       this.scene.world,
@@ -236,15 +260,16 @@ export class ExploreController {
         tapRejectedReason = 'blocked';
       } else if (this.tapLocked) {
         tapRejectedReason = 'locked';
-      } else if (performance.now() < this.zoomCooldownUntil) {
+      } else if (now < this.zoomCooldownUntil) {
         tapRejectedReason = 'cooldown';
       } else if (!atUp.chosen) {
         tapRejectedReason = 'noCandidate';
       }
     }
 
+    const rect = this.canvas.getBoundingClientRect();
     const snapshot: HitTestDebugSnapshot = {
-      timestamp: performance.now(),
+      timestamp: now,
       clientDown: { x: probe.clientDownX, y: probe.clientDownY },
       clientUp: { x: probe.clientUpX, y: probe.clientUpY },
       canvasDown: { x: probe.canvasDownX, y: probe.canvasDownY },
@@ -256,17 +281,31 @@ export class ExploreController {
       wasDragging: probe.wasDragging,
       wasTap: probe.wasTap,
       tapRejectedReason,
+      hitTestExecuted,
       pointerTarget: dom.pointerTarget,
       elementsFromPoint: dom.elements,
       domBlocksCanvas: dom.domBlocksCanvas,
+      filterStats: atUp.stats,
       hitCandidates: atUp.candidates,
       hitCandidatesAtDown: atDown.candidates,
       chosenImageId: atUp.chosen?.imageId ?? null,
+      chosenRenderOrder: atUp.chosen?.renderOrder ?? null,
+      chosenAlpha: atUp.chosen?.alpha ?? null,
       chosenBounds: atUp.chosen?.bounds ?? null,
       chosenAtDownImageId: atDown.chosen?.imageId ?? null,
       tapMoveThresholdPx: probe.tapMoveThresholdPx,
       tapMaxDurationMs: probe.tapMaxDurationMs,
       panStartThresholdPx: probe.panStartThresholdPx,
+      canvasRect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      rendererResolution: this.app?.renderer.resolution ?? window.devicePixelRatio ?? 1,
+      tapLocked: this.tapLocked,
+      cooldownRemainingMs,
+      overlayBlocking: this.pointerBlockedExternal,
     };
 
     this.lastHitTestSnapshot = snapshot;
@@ -286,7 +325,7 @@ export class ExploreController {
     if (performance.now() < this.zoomCooldownUntil) return;
 
     const time = performance.now() / 1000;
-    applyExploreView(this.scene, this.exploreView, this.config, time, 0);
+    applyExploreView(this.scene, this.exploreView, this.config, time, 0, this.getViewport());
 
     const hit = hitTestImage(this.scene.world, this.scene.images, rx, ry);
     if (!hit) return;
@@ -394,7 +433,7 @@ export class ExploreController {
       ? this.scene?.images.find((i) => i.meta.id === this.selectedImageId)
       : undefined;
     const stats: DebugStats = {
-      demoId: 'DD',
+      demoId: DEMO_ID,
       fps,
       visualPreset: cfg.presetId,
       tonePreset: this.tonePresetId,
@@ -411,8 +450,24 @@ export class ExploreController {
       idleSampleY: idleSample?.offsetY ?? 0,
       idleSampleRotDeg: idleSample ? (idleSample.rotation * 180) / Math.PI : 0,
       depthFlowEnabled: MOTION_CONFIG.depthFlow.enabled,
-      depthFlowMode: MOTION_CONFIG.depthFlow.enabled ? MOTION_CONFIG.depthFlow.mode : 'off',
-      parallaxMode: MOTION_CONFIG.depthFlow.enabled ? 'off' : 'legacy-layer',
+      depthFlowMode: isCameraNavigationMode()
+        ? 'camera-depth-navigation'
+        : isObjectFlowMode()
+          ? 'object-flow'
+          : 'off',
+      objectFlowActive: isObjectFlowMode(),
+      flowSpeedControlEnabled: isObjectFlowMode(),
+      parallaxMode: isCameraNavigationMode() ? 'perspective-projection' : 'off',
+      cameraZ: getCameraZ(),
+      targetCameraZ: getCameraZ(),
+      cameraZVelocity: getTargetSceneTimeScale() - getSceneTimeScale(),
+      sceneTimeScale: getSceneTimeScale(),
+      targetSceneTimeScale: getTargetSceneTimeScale(),
+      sceneTimeWheelBoost: isSceneTimeWheelBoostActive(),
+      effectiveSceneDriftSpeed: getEffectiveSceneDriftSpeed(),
+      minCameraZ: MOTION_CONFIG.cameraDepth.initialZ,
+      maxCameraZ: MOTION_CONFIG.cameraDepth.initialZ,
+      cameraWheelSensitivity: MOTION_CONFIG.cameraDepth.timeWheelFastScale,
       depthFlowBaseSpeed: MOTION_CONFIG.depthFlow.baseSpeed,
       depthFlowSpeedMultiplier: getDepthFlowSpeedMultiplier(),
       depthFlowSpeedDirection: getDepthFlowSpeedDirection(),
@@ -430,6 +485,11 @@ export class ExploreController {
       depthFlowSampleRenderOrder: depthFlowSample?.renderOrder ?? 0,
       layerReparentCount: 0,
       selectedFlowDepth: selectedItem?.flowDepth ?? null,
+      selectedSceneZ: selectedItem?.sceneZ ?? null,
+      selectedRelativeZ: selectedItem?.lastRelativeZ ?? null,
+      selectedPerspective: selectedItem?.lastPerspective ?? null,
+      selectedImageDepth: selectedItem?.sceneZ ?? null,
+      selectedRelativeDepth: selectedItem?.lastRelativeZ ?? null,
       selectedDepthLabel: selectedItem?.layerId ?? null,
       selectedRenderOrder: selectedItem?.renderOrder ?? null,
       selectedFlowSpeed: selectedItem?.flowSpeed ?? null,
@@ -493,9 +553,14 @@ export class ExploreController {
       wasDragging: snapshot.wasDragging,
       wasTap: snapshot.wasTap,
       tapRejectedReason: snapshot.tapRejectedReason,
+      hitTestExecuted: snapshot.hitTestExecuted,
       pointerTarget: snapshot.pointerTarget,
       elementsFromPointTop: snapshot.elementsFromPoint[0] ?? '(none)',
       domBlocksCanvas: snapshot.domBlocksCanvas,
+      candidatesBeforeFilter: snapshot.filterStats.beforeFilter,
+      candidatesAfterVisibility: snapshot.filterStats.afterVisibility,
+      candidatesAfterAlpha: snapshot.filterStats.afterAlpha,
+      candidatesFinal: snapshot.filterStats.final,
       hitCandidateCount: snapshot.hitCandidates.length,
       hitCandidates: snapshot.hitCandidates.map((c) => ({
         imageId: c.imageId,
@@ -503,14 +568,25 @@ export class ExploreController {
         layerId: c.layerId,
         zIndex: c.zIndex,
         renderOrder: c.renderOrder,
+        alpha: c.alpha,
         bounds: c.bounds,
       })),
       chosenImageId: snapshot.chosenImageId,
+      chosenRenderOrder: snapshot.chosenRenderOrder,
+      chosenAlpha: snapshot.chosenAlpha,
       chosenBounds: snapshot.chosenBounds,
       chosenAtDownImageId: snapshot.chosenAtDownImageId,
       tapMoveThresholdPx: snapshot.tapMoveThresholdPx,
       tapMaxDurationMs: snapshot.tapMaxDurationMs,
       panStartThresholdPx: snapshot.panStartThresholdPx,
+      canvasRectLeft: snapshot.canvasRect.left,
+      canvasRectTop: snapshot.canvasRect.top,
+      canvasRectWidth: snapshot.canvasRect.width,
+      canvasRectHeight: snapshot.canvasRect.height,
+      rendererResolution: snapshot.rendererResolution,
+      tapLocked: snapshot.tapLocked,
+      cooldownRemainingMs: snapshot.cooldownRemainingMs,
+      overlayBlocking: snapshot.overlayBlocking,
     };
   }
 

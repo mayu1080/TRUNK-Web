@@ -1,0 +1,133 @@
+{
+  "doc": "production-state-flow",
+  "version": "0.1",
+  "date": "2026-08-29",
+  "phase": 0,
+  "adMode": "four-screen-synced-content",
+  "adLogicalModel": "one-content-synced-to-four-screens",
+  "globalScene": ["AD_IDLE", "ANIMATION", "PRODUCT_LIST"],
+  "localOverlay": ["NONE", "IMAGE_ZOOM", "CATEGORY_DRAWER", "CATEGORY_MODAL"],
+  "overlayExclusivity": "one-local-overlay-per-monitor",
+  "interactionLockedWhen": "localOverlay !== NONE",
+  "globalTransitions": [
+    {
+      "from": "AD_IDLE",
+      "to": "ANIMATION",
+      "trigger": "any-monitor-touch-one-finger-or-more",
+      "scope": "all-monitors"
+    },
+    {
+      "from": "ANIMATION",
+      "to": "PRODUCT_LIST",
+      "trigger": "animation-duration-reached",
+      "scope": "all-monitors",
+      "touchDuringAnimation": "ignored-no-skip"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "AD_IDLE",
+      "trigger": "no-valid-touch-on-any-monitor-for-120s",
+      "scope": "all-monitors",
+      "clears": [
+        "localOverlay",
+        "selectedImageId",
+        "selectedCategoryId",
+        "bubble",
+        "gesture",
+        "camera"
+      ]
+    }
+  ],
+  "localTransitions": [
+    {
+      "from": "NONE",
+      "to": "IMAGE_ZOOM",
+      "trigger": "image-tap",
+      "scope": "monitor-n"
+    },
+    {
+      "from": "IMAGE_ZOOM",
+      "to": "NONE",
+      "trigger": "close",
+      "scope": "monitor-n"
+    },
+    {
+      "from": "NONE",
+      "to": "CATEGORY_DRAWER",
+      "trigger": "hamburger",
+      "scope": "monitor-n"
+    },
+    {
+      "from": "CATEGORY_DRAWER",
+      "to": "NONE",
+      "trigger": "hamburger-close-or-scrim",
+      "scope": "monitor-n"
+    },
+    {
+      "from": "CATEGORY_DRAWER",
+      "to": "CATEGORY_MODAL",
+      "trigger": "category-select",
+      "scope": "monitor-n",
+      "closesDrawer": true
+    },
+    {
+      "from": "CATEGORY_MODAL",
+      "to": "NONE",
+      "trigger": "close",
+      "scope": "monitor-n"
+    }
+  ],
+  "idle": {
+    "seconds": 120,
+    "scope": "global-all-monitors",
+    "appliesWhenGlobalScene": ["PRODUCT_LIST"],
+    "includesOverlays": true,
+    "pausedWhen": ["AD_IDLE", "ANIMATION"],
+    "oneActiveMonitorBlocksReturn": true,
+    "resetOn": [
+      "tap",
+      "drag-start",
+      "pinch-start",
+      "two-finger-vertical-start",
+      "drawer-open",
+      "drawer-close",
+      "category-select",
+      "zoom-open",
+      "zoom-close",
+      "modal-close"
+    ],
+    "doNotResetOn": ["bubble-follow-only", "hover-pointermove-only"],
+    "primaryResetSignals": ["pointerdown", "touchstart", "gesture-start"]
+  },
+  "overlayIndependence": {
+    "monitor1ImageZoomDoesNotBlockOthers": true,
+    "monitor2DrawerDoesNotBlockOthers": true,
+    "lockScope": "owning-monitor-only"
+  },
+  "actions": {
+    "global": [
+      "AD_IDLE_TOUCH",
+      "ANIMATION_COMPLETE",
+      "GLOBAL_IDLE_TIMEOUT"
+    ],
+    "local": [
+      "LIST_IMAGE_TAP",
+      "IMAGE_ZOOM_CLOSE",
+      "CATEGORY_DRAWER_OPEN",
+      "CATEGORY_DRAWER_CLOSE",
+      "CATEGORY_SELECT",
+      "CATEGORY_MODAL_CLOSE",
+      "TOUCH_ACTIVITY"
+    ]
+  },
+  "replacesLegacy": {
+    "TOP": "AD_IDLE",
+    "PRODUCT_DETAIL": "CATEGORY_MODAL",
+    "IDLE_TIMEOUT_per_monitor_600s": "GLOBAL_IDLE_TIMEOUT_120s"
+  },
+  "openQuestions": [
+    "animation-end-policy",
+    "dev-idle-override-env",
+    "animation-duration-source"
+  ]
+}

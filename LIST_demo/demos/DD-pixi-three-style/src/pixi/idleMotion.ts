@@ -41,6 +41,7 @@ export function computeIdleMotion(
   item: PlacedImage,
   time: number,
   motion: MotionConfig,
+  relativeZ?: number,
 ): IdleMotionOffsets {
   const { idle } = motion;
   if (!idle.enabled) {
@@ -48,7 +49,10 @@ export function computeIdleMotion(
   }
 
   const { far, near } = idle.depthProfile;
-  const depthT = smoothstep(0, 1, item.flowDepth);
+  const depthT =
+    relativeZ !== undefined
+      ? smoothstep(0, 1, Math.max(0, Math.min(1, 1 - relativeZ / 2000)))
+      : smoothstep(0, 1, item.flowDepth);
   const yAmp =
     lerp(idle.yAmplitudeMin, idle.yAmplitudeMax, item.idleIntensity) *
     lerp(far.yAmp, near.yAmp, depthT) /

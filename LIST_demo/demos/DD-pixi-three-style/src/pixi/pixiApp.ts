@@ -1,4 +1,5 @@
 import { Application } from 'pixi.js';
+import { bindCanvasResolution } from './pointerCoords';
 import type { ExploreView } from './types';
 
 export interface PixiAppHandle {
@@ -26,6 +27,7 @@ export async function createPixiApp(host: HTMLElement, bgColor: string): Promise
   (app.canvas as HTMLCanvasElement & { __initTimeMs?: number }).__initTimeMs = initTimeMs;
 
   const canvas = app.canvas as HTMLCanvasElement;
+  bindCanvasResolution(canvas, app.renderer.resolution);
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
     console.error('[DD] WebGL Context Lost');

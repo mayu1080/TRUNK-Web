@@ -1,0 +1,199 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-07-11",
+  "demoId": "DF",
+  "demoName": "DF-three-camera-depth",
+  "path": "LIST_demo/demos/DF-three-camera-depth",
+  "url": "http://localhost:5177/",
+  "port": 5177,
+  "startCommand": "cd LIST_demo && npm run demo:df",
+  "purpose": "Three.js PerspectiveCamera で写真空間に入り込む体験を検証。DE（Pixi疑似カメラ）比較用。",
+  "canvasCount": 1,
+  "dependencies": {
+    "three": "^0.172.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "framer-motion": "^11.15.0"
+  },
+  "vs": {
+    "DD": "Pixi depthFlow + DOM UI 統合の親",
+    "DE": "Pixi cameraDepth + timeScale。Sprite hit。約60枚",
+    "DF": "Three 本物カメラ + Raycaster。約70枚。dolly cruise"
+  },
+  "feelSummary": [
+    "wheel時のカメラはぬるぬる動く",
+    "DEより空間に入っていく感覚が強い",
+    "Raycaster hitは比較的快適",
+    "クライアント見せ満足度はDFが高め",
+    "tap閾値・HIT_TEST_MIN_ALPHA・逐次テクスチャ待ちは調整余地"
+  ],
+  "camera": {
+    "fov": 52,
+    "near": 10,
+    "far": 10000,
+    "initial": { "x": 0, "y": 0, "z": 1800 },
+    "clamp": {
+      "minZ": 200,
+      "maxZ": 4200,
+      "minX": -2200,
+      "maxX": 2200,
+      "minY": -1400,
+      "maxY": 1400
+    },
+    "wheelSensitivity": 1.15,
+    "dragSensitivity": 1.35,
+    "smoothing": 0.12,
+    "lookAtOffsetZ": -1000
+  },
+  "dollyCruise": {
+    "impulsePer100px": 520,
+    "maxSpeed": 1600,
+    "coastFriction": 1.15,
+    "releaseBrake": 3.8,
+    "scrubCancelBrake": 8,
+    "infiniteLoop": true,
+    "softBoundMargin": 420,
+    "softBoundMarginUsed": false,
+    "poseSmoothingCruise": 0.2,
+    "fovWidenAtFullSpeed": 3.2,
+    "fovSmoothing": 0.07
+  },
+  "tap": {
+    "maxMovePx": 12,
+    "maxDurationMs": 500,
+    "hitTestMinAlpha": 0.18,
+    "method": "pointerup manual → Raycaster",
+    "adoptRule": "intersectObjects distance ascending → first after filters"
+  },
+  "layout": {
+    "imageCount": 70,
+    "seed": 1234,
+    "xRange": [-2000, 2000],
+    "yRange": [-1200, 1200],
+    "zRange": [-3000, 1200],
+    "fieldJitter": 0.82,
+    "anyMinDist": 140,
+    "scaleMulRange": [0.72, 1.28],
+    "longSideBase": 280,
+    "orientation": "fixed-forward (not billboard)"
+  },
+  "cardMotion": {
+    "sceneDriftSpeed": 72,
+    "sceneDriftVariance": 0.18,
+    "nearFadeStartDist": 280,
+    "nearFadeEndDist": 80,
+    "farFadeStartDist": 2800,
+    "farFadeEndDist": 4200,
+    "farAlphaStartDist": 1750,
+    "farAlphaSoftDist": 3200,
+    "farAlphaFloor": 0.55,
+    "farTintDarken": 0.88
+  },
+  "meshUserData": {
+    "imageId": "string",
+    "imageUrl": "string",
+    "currentAlpha": "number",
+    "isImageCard": true
+  },
+  "managementArrays": {
+    "cards": "ExploreController.cards (ThreeImageCard[])",
+    "imageMeshes": "ExploreController.imageMeshes (Object3D[])"
+  },
+  "accessPoints": {
+    "rendererSceneCamera": "src/three/exploreController.ts ExploreController",
+    "canvasMount": "host.appendChild(renderer.domElement) in init()",
+    "appHost": "App.tsx hostRef → .three-layer",
+    "pointerHandlers": "ExploreController onPointerDown/Move/Up",
+    "raycaster": "ExploreController.handleTap + hitTestDiagnostics.runRaycastHitTest",
+    "domUi": "src/ui/* + motionConfig.ts"
+  },
+  "visualPresets": {
+    "default": "soft-tint",
+    "options": ["clean", "cultish-soft", "cultish-heavy", "soft-tint"],
+    "soft-tint": {
+      "tintHex": "0xe8e2d8",
+      "fogDensity": 0.00018,
+      "listAlpha": 1,
+      "noiseOpacity": 0.14
+    }
+  },
+  "domMotion": {
+    "imageZoom": {
+      "scrimFadeMs": 180,
+      "cardDelayMs": 33,
+      "cardFadeMs": 210,
+      "scrimOpacityMax": 0.55,
+      "scrimBlurPx": 14
+    },
+    "drawer": {
+      "widthPx": 320,
+      "openMs": 260,
+      "closeMs": 230,
+      "scrimFadeMs": 220
+    }
+  },
+  "debugStatsFields": [
+    "fps",
+    "canvasCount",
+    "imageMeshCount",
+    "textureCount",
+    "cameraX",
+    "cameraY",
+    "cameraZ",
+    "targetCameraX",
+    "targetCameraY",
+    "targetCameraZ",
+    "timelinePosition",
+    "raycastCandidateCount",
+    "chosenImageId",
+    "chosenDistance",
+    "selectedImageId",
+    "overlayOpen",
+    "drawerOpen"
+  ],
+  "knownIssues": [
+    "sequential texture loadAsync wait",
+    "dark clear/fog can look like black screen before textures",
+    "HIT_TEST_MIN_ALPHA 0.18 stricter than DE 0.08",
+    "tap 12px/500ms stricter than DE 18px/650ms",
+    "softBoundMargin unused",
+    "no true billboard",
+    "vite/db index missing falls back to mock",
+    "strictPort 5177"
+  ],
+  "diHandoff": {
+    "doNotModifyDf": true,
+    "copyFrom": "LIST_demo/demos/DF-three-camera-depth",
+    "copyTo": "LIST_demo/demos/DI-three-bubble-reveal",
+    "bubbleSpec": "LIST_demo/reports/bubble-color-reveal-spec.md",
+    "touch": [
+      "exploreController render loop / pointer",
+      "new bubble module",
+      "App/styles for bubble DOM",
+      "shader or dual-pass for color reveal"
+    ],
+    "doNotTouch": [
+      "app/",
+      "DF demo in place",
+      "DB/DA/DD/DE breakage",
+      "multiple canvases"
+    ],
+    "outOfScopeNow": [
+      "DF extra features",
+      "DE fixes",
+      "Bubble implementation",
+      "DI creation",
+      "production app"
+    ]
+  },
+  "keyFiles": {
+    "exploreController": "src/three/exploreController.ts",
+    "sceneLayout": "src/three/sceneLayout.ts",
+    "hitTestDiagnostics": "src/three/hitTestDiagnostics.ts",
+    "app": "src/App.tsx",
+    "motionConfig": "src/motionConfig.ts",
+    "visualConfig": "src/visualConfig.ts",
+    "imageSelection": "src/imageSelection.ts",
+    "assetLoader": "src/assetLoader.ts"
+  }
+}

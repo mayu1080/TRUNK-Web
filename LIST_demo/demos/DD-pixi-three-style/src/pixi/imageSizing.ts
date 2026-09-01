@@ -1,14 +1,14 @@
-/** LIST 表示サイズ帯（長辺 px） */
+/** LIST 表示サイズ帯（長辺 px）— DF / CULTISH 寄りの大きめ帯 */
 export const IMAGE_SIZE_PRESETS = {
-  small: { min: 120, max: 180, weight: 0.45 },
-  medium: { min: 180, max: 280, weight: 0.4 },
-  large: { min: 280, max: 420, weight: 0.15 },
+  small: { min: 180, max: 240, weight: 0.28 },
+  medium: { min: 240, max: 320, weight: 0.47 },
+  large: { min: 300, max: 400, weight: 0.25 },
 } as const;
 
 export type SizePreset = keyof typeof IMAGE_SIZE_PRESETS;
 
 /** 最大長辺の上限（large preset max と一致） */
-export const MAX_TARGET_LONG_SIDE = 420;
+export const MAX_TARGET_LONG_SIDE = 400;
 
 /** 配置ランダムのシード */
 export const PLACEMENT_SEED = 42;

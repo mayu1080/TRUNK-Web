@@ -7,7 +7,7 @@ import {
   Sprite,
   Texture,
 } from 'pixi.js';
-import type { VisualConfig } from '../visualConfig';
+import { SOFT_TINT_RGB, type VisualConfig } from '../visualConfig';
 import { depthAlpha, depthScale, depthToLayer } from './depthController';
 import {
   aggregateDisplaySizeStats,
@@ -37,6 +37,8 @@ import {
   initDepthFlowParams,
   integrateDepthFlow,
 } from './depthFlowMotion';
+import { getCameraZ, isCameraNavigationMode, updateSceneTimeScale } from './cameraDepth';
+import { computeCameraLookAt, computeCameraProjection, integrateSceneZDrift } from './cameraDepthMotion';
 import { computeIdleMotion, initIdleParams } from './idleMotion';
 
 export interface PlacedImage {
@@ -48,6 +50,8 @@ export interface PlacedImage {
   /** デバッグ用ラベル — flowDepth から毎フレーム更新（4段階 or legacy 3段階） */
   layerId: 'far' | 'mid' | 'near' | 'midFar' | 'midNear';
   flowDepth: number;
+  /** @deprecated E-2 では sceneZ を使用 */
+  imageDepth: number;
   flowSpeed: number;
   /** speedVariance 由来の個体差（baseSpeed×multiplier に加算） */
   flowSpeedVariance: number;
@@ -57,6 +61,14 @@ export interface PlacedImage {
   stableIndex: number;
   baseX: number;
   baseY: number;
+  /** E-2: 空間内固定座標 */
+  sceneX: number;
+  sceneY: number;
+  sceneZ: number;
+  /** E-2: sceneZ ドリフト個体差倍率 */
+  sceneZDriftMul: number;
+  lastRelativeZ: number;
+  lastPerspective: number;
   baseScale: number;
   floatPhase: number;
   floatSpeed: number;
@@ -83,7 +95,16 @@ export interface HitTestCandidate {
   layerId: 'far' | 'mid' | 'near' | 'midFar' | 'midNear';
   zIndex: number;
   renderOrder: number;
+  alpha: number;
   bounds: { x: number; y: number; w: number; h: number };
+}
+
+export interface HitTestFilterStats {
+  beforeFilter: number;
+  afterVisibility: number;
+  afterAlpha: number;
+  afterBounds: number;
+  final: number;
 }
 
 export interface ExploreScene {
@@ -116,6 +137,8 @@ function textureDimensions(texture: Texture): { width: number; height: number } 
 /**
  * 画像 Sprite のみに適用する LIST トーン（ワールド／背景には掛けない）
  * Pixi v8 contrast: 0.5=標準、下げるとシャドウ持ち上げ＋白飛び抑制
+ *
+ * soft-tint: DF 相当 — ITU-R BT.601 輝度灰 × 暖色ティント（bright/contrast マトリクスは使わない）
  */
 export function applyImageTone(
   filter: ColorMatrixFilter,
@@ -125,6 +148,23 @@ export function applyImageTone(
 ): void {
   filter.reset();
   const { image } = config;
+
+  if (image.toneMode === 'soft-tint' && image.grayscale) {
+    const tint = image.tintRgb ?? SOFT_TINT_RGB;
+    const lr = 0.299;
+    const lg = 0.587;
+    const lb = 0.114;
+    const b = image.brightness * brightnessMul;
+    // gray = dot(rgb, luma); then rgb = gray * tint * brightness
+    filter.matrix = [
+      lr * tint.r * b, lg * tint.r * b, lb * tint.r * b, 0, 0,
+      lr * tint.g * b, lg * tint.g * b, lb * tint.g * b, 0, 0,
+      lr * tint.b * b, lg * tint.b * b, lb * tint.b * b, 0, 0,
+      0, 0, 0, 1, 0,
+    ];
+    return;
+  }
+
   const contrast = image.contrast * contrastMul;
 
   if (!image.grayscale) {
@@ -247,6 +287,7 @@ export async function buildExploreScene(
       depth,
       layerId,
       flowDepth: depth,
+      imageDepth: depth,
       flowSpeed: 0,
       flowSpeedVariance: 0,
       flowDirX: 0,
@@ -255,6 +296,12 @@ export async function buildExploreScene(
       stableIndex,
       baseX,
       baseY,
+      sceneX: baseX,
+      sceneY: baseY,
+      sceneZ: 0,
+      sceneZDriftMul: 1,
+      lastRelativeZ: 0,
+      lastPerspective: 1,
       baseScale,
       floatPhase: rand() * Math.PI * 2,
       floatSpeed: 0.7 + rand() * 0.6,
@@ -276,6 +323,9 @@ export async function buildExploreScene(
     placed.push(placedItem);
     initIdleParams(placedItem, rand, MOTION_CONFIG);
     initDepthFlowParams(placedItem, rand, MOTION_CONFIG);
+    placedItem.sceneX = baseX;
+    placedItem.sceneY = baseY;
+    placedItem.imageDepth = placedItem.sceneZ;
     allMetrics.push(display);
   }
 
@@ -313,6 +363,91 @@ export function applyVisualConfigToScene(scene: ExploreScene, config: VisualConf
 }
 
 export function applyExploreView(
+  scene: ExploreScene,
+  view: ExploreView,
+  config: VisualConfig,
+  time: number,
+  deltaTime = 0,
+  viewport?: { width: number; height: number },
+): void {
+  if (isCameraNavigationMode()) {
+    applyCameraExploreView(scene, view, config, time, deltaTime, viewport);
+    return;
+  }
+
+  applyObjectFlowExploreView(scene, view, config, time, deltaTime);
+}
+
+/** E-2 — 疑似3Dカメラ + sceneZ ドリフト */
+function applyCameraExploreView(
+  scene: ExploreScene,
+  view: ExploreView,
+  config: VisualConfig,
+  time: number,
+  deltaTime: number,
+  viewport?: { width: number; height: number },
+): void {
+  worldTransform(scene, view);
+  updateSceneTimeScale(deltaTime);
+
+  const cameraZ = getCameraZ();
+  const vpW = viewport?.width ?? 1920;
+  const vpH = viewport?.height ?? 1080;
+  const { cameraX, cameraY } = computeCameraLookAt(view.panX, view.panY, view.zoom, vpW, vpH);
+  const useIdle = MOTION_CONFIG.idle.enabled;
+
+  for (const item of scene.images) {
+    integrateSceneZDrift(item, cameraZ, deltaTime, scene, config, MOTION_CONFIG);
+
+    const proj = computeCameraProjection(item, cameraX, cameraY, cameraZ, MOTION_CONFIG);
+    item.lastRelativeZ = proj.relativeZ;
+    item.lastPerspective = proj.perspective;
+    item.layerId = proj.depthLabel;
+    item.renderOrder = proj.renderOrder;
+    item.sprite.zIndex = proj.renderOrder;
+    item.flowDepth = 0;
+    item.depth = clamp01(1 - proj.relativeZ / MOTION_CONFIG.cameraDepth.farFadeStart);
+
+    let idleX = 0;
+    let idleY = 0;
+    let idleScaleMul = 1;
+    let idleRot = 0;
+
+    if (useIdle) {
+      const idle = computeIdleMotion(item, time, MOTION_CONFIG, proj.relativeZ);
+      idleX = idle.offsetX;
+      idleY = idle.offsetY;
+      idleScaleMul = idle.scaleMul;
+      idleRot = idle.rotation;
+    }
+
+    item.sprite.x = proj.screenX + item.reactionOffsetX + idleX;
+    item.sprite.y = proj.screenY + item.reactionOffsetY + idleY;
+    item.sprite.rotation = idleRot;
+
+    const totalScale =
+      item.baseScale *
+      proj.scaleMul *
+      item.reactionScale *
+      item.tapFocusScale *
+      idleScaleMul;
+    item.sprite.scale.set(totalScale);
+
+    const brightMul = item.tapFocusBright !== 1 ? item.tapFocusBright : proj.brightnessMul;
+    applyImageTone(item.greyFilter, config, brightMul, proj.contrastMul);
+    item.sprite.alpha = proj.alphaMul * config.image.listAlpha;
+    applyDepthBlur(item.blurFilter, proj.blurStrength);
+  }
+
+  scene.imageContainer.sortChildren();
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+/** E — object-flow */
+function applyObjectFlowExploreView(
   scene: ExploreScene,
   view: ExploreView,
   config: VisualConfig,
@@ -381,38 +516,55 @@ export function applyExploreView(
     scene.imageContainer.sortChildren();
   }
 }
-
-/** 全画像共通 pan / zoom — レイヤー別パララックスなし */
 function worldTransform(scene: ExploreScene, view: ExploreView): void {
   scene.world.position.set(view.panX, view.panY);
   scene.world.scale.set(view.zoom);
 }
 
-/** 最終表示 bounds（float / rotation / scale 反映後）でヒット候補を列挙 */
+/** 最終表示の画像矩形でヒット候補を列挙（BlurFilter padding 除外） */
 export function hitTestCandidates(
   images: PlacedImage[],
   rendererX: number,
   rendererY: number,
 ): HitTestCandidate[] {
+  return hitTestCandidatesDetailed(images, rendererX, rendererY).candidates;
+}
+
+export function hitTestCandidatesDetailed(
+  images: PlacedImage[],
+  rendererX: number,
+  rendererY: number,
+): { candidates: HitTestCandidate[]; stats: HitTestFilterStats } {
   const px = rendererX;
   const py = rendererY;
   const hits: HitTestCandidate[] = [];
 
-  const minAlpha = MOTION_CONFIG.depthFlow.hitTestMinAlpha;
-  const skipLowAlpha = MOTION_CONFIG.depthFlow.enabled;
+  const minAlpha = isCameraNavigationMode()
+    ? MOTION_CONFIG.cameraDepth.hitTestMinAlpha
+    : MOTION_CONFIG.depthFlow.hitTestMinAlpha;
+
+  let afterVisibility = 0;
+  let afterAlpha = 0;
 
   for (const item of images) {
     const { sprite } = item;
-    if (skipLowAlpha && sprite.alpha < minAlpha) continue;
-    const b = sprite.getBounds();
+    if (!sprite.visible) continue;
+    afterVisibility += 1;
+
+    // alpha しきい値のみ（relativeZ ゲートは外し、渋さを解消）
+    if (sprite.alpha < minAlpha) continue;
+    afterAlpha += 1;
+
+    const b = getSpriteHitBounds(sprite);
     if (px < b.minX || px > b.maxX || py < b.minY || py > b.maxY) continue;
     hits.push({
       item,
       imageId: item.meta.id,
-      depth: item.flowDepth,
+      depth: isCameraNavigationMode() ? item.lastRelativeZ : item.flowDepth,
       layerId: item.layerId,
       zIndex: sprite.zIndex,
       renderOrder: item.renderOrder,
+      alpha: sprite.alpha,
       bounds: {
         x: b.minX,
         y: b.minY,
@@ -423,7 +575,54 @@ export function hitTestCandidates(
   }
 
   hits.sort((a, b) => b.renderOrder - a.renderOrder);
-  return hits;
+
+  return {
+    candidates: hits,
+    stats: {
+      beforeFilter: images.length,
+      afterVisibility,
+      afterAlpha,
+      afterBounds: hits.length,
+      final: hits.length,
+    },
+  };
+}
+
+/**
+ * 見た目の画像矩形（BlurFilter padding を含めない）。
+ * getBounds() はブラーで膨張するため、worldTransform の 4 隅 AABB を使う。
+ */
+function getSpriteHitBounds(sprite: Sprite): {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+} {
+  const local = sprite.getLocalBounds();
+  const wt = sprite.worldTransform;
+  const x0 = local.x;
+  const y0 = local.y;
+  const x1 = local.x + local.width;
+  const y1 = local.y + local.height;
+
+  const corners = [
+    wt.apply({ x: x0, y: y0 }),
+    wt.apply({ x: x1, y: y0 }),
+    wt.apply({ x: x1, y: y1 }),
+    wt.apply({ x: x0, y: y1 }),
+  ];
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of corners) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { minX, maxX, minY, maxY };
 }
 
 /** 最前面候補を採用（renderOrder 降順） */

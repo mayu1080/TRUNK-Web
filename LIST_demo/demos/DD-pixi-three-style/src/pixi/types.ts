@@ -59,7 +59,7 @@ export interface SelectedImageDebug {
 }
 
 export interface DebugStats {
-  demoId: 'DD';
+  demoId: 'DD' | 'DE';
   fps: number;
   visualPreset: string;
   tonePreset: string;
@@ -77,7 +77,19 @@ export interface DebugStats {
   idleSampleRotDeg: number;
   depthFlowEnabled: boolean;
   depthFlowMode: string;
+  objectFlowActive: boolean;
+  flowSpeedControlEnabled: boolean;
   parallaxMode: string;
+  cameraZ: number;
+  targetCameraZ: number;
+  cameraZVelocity: number;
+  sceneTimeScale: number;
+  targetSceneTimeScale: number;
+  sceneTimeWheelBoost: boolean;
+  effectiveSceneDriftSpeed: number;
+  minCameraZ: number;
+  maxCameraZ: number;
+  cameraWheelSensitivity: number;
   depthFlowBaseSpeed: number;
   depthFlowSpeedMultiplier: number;
   depthFlowSpeedDirection: number;
@@ -95,6 +107,11 @@ export interface DebugStats {
   depthFlowSampleRenderOrder: number;
   layerReparentCount: number;
   selectedFlowDepth: number | null;
+  selectedSceneZ: number | null;
+  selectedRelativeZ: number | null;
+  selectedPerspective: number | null;
+  selectedImageDepth: number | null;
+  selectedRelativeDepth: number | null;
   selectedDepthLabel: string | null;
   selectedRenderOrder: number | null;
   selectedFlowSpeed: number | null;
@@ -144,6 +161,7 @@ export interface HitTestCandidateDebug {
   layerId: string;
   zIndex: number;
   renderOrder: number;
+  alpha: number;
   bounds: HitTestBoundsDebug;
 }
 
@@ -165,17 +183,32 @@ export interface HitTestDebugStats {
   wasDragging: boolean;
   wasTap: boolean;
   tapRejectedReason: string;
+  hitTestExecuted: boolean;
   pointerTarget: string;
   elementsFromPointTop: string;
   domBlocksCanvas: boolean;
+  candidatesBeforeFilter: number;
+  candidatesAfterVisibility: number;
+  candidatesAfterAlpha: number;
+  candidatesFinal: number;
   hitCandidateCount: number;
   hitCandidates: HitTestCandidateDebug[];
   chosenImageId: string | null;
+  chosenRenderOrder: number | null;
+  chosenAlpha: number | null;
   chosenBounds: HitTestBoundsDebug | null;
   chosenAtDownImageId: string | null;
   tapMoveThresholdPx: number;
   tapMaxDurationMs: number;
   panStartThresholdPx: number;
+  canvasRectLeft: number;
+  canvasRectTop: number;
+  canvasRectWidth: number;
+  canvasRectHeight: number;
+  rendererResolution: number;
+  tapLocked: boolean;
+  cooldownRemainingMs: number;
+  overlayBlocking: boolean;
 }
 
 export interface TrunkApiLike {

@@ -57,9 +57,9 @@ export interface SelectionResult {
 
 /**
  * demo-asset-index の全画像から表示用配列を組み立てる。
- * - 70+ : ランダム70枚（seed 指定可）
- * - 40-69 : 全件
- * - 1-39 : 40枚に複製
+ * - 60+ : ランダム60枚（seed 指定可）
+ * - ちょうど60 : 全件
+ * - 1-59 : 60枚に複製
  */
 export function selectImagesForDisplay(
   index: DemoAssetIndex,

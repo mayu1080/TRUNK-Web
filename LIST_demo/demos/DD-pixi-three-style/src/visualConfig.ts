@@ -4,9 +4,12 @@ import {
   type TonePresetId,
 } from './tonePresets';
 
-export type VisualPresetId = 'clean' | 'cultish-soft' | 'cultish-heavy';
+export type VisualPresetId = 'clean' | 'cultish-soft' | 'cultish-heavy' | 'soft-tint';
 
-export type ImageToneMode = 'soft' | 'dramatic';
+export type ImageToneMode = 'soft' | 'dramatic' | 'soft-tint';
+
+/** DF 相当: 輝度灰のあとに乗算する暖色ティント (0xe8e2d8) */
+export const SOFT_TINT_RGB = { r: 0xe8 / 255, g: 0xe2 / 255, b: 0xd8 / 255 } as const;
 
 export interface VisualConfig {
   presetId: VisualPresetId;
@@ -49,6 +52,8 @@ export interface VisualConfig {
     listAlpha: number;
     /** @deprecated toneMode 参照 */
     greyscaleAmount: number;
+    /** soft-tint 時の乗算ティント（未指定時は SOFT_TINT_RGB） */
+    tintRgb?: { r: number; g: number; b: number };
   };
   depth: {
     enabled: boolean;
@@ -88,18 +93,18 @@ const BG_BOTTOM = '#030303';
 const WORLD_BASE = {
   width: 3000,
   height: 2200,
-  margin: 88,
-  defaultZoom: 0.86,
+  margin: 64,
+  defaultZoom: 0.94,
   panPaddingScreen: 36,
-  contentPadding: 56,
+  contentPadding: 40,
 };
 
+/** 重なり軽減 — 枚数60に合わせ最小距離を確保 */
 const PLACEMENT_BASE = {
-  sameGroupMinDist: 168,
-  anyMinDist: 62,
-  /** セル内ランダム幅（0.6〜0.9 推奨） */
-  fieldJitter: 0.82,
-  boundsInset: 0.05,
+  sameGroupMinDist: 150,
+  anyMinDist: 78,
+  fieldJitter: 0.72,
+  boundsInset: 0.04,
 };
 
 /** LIST 画像トーンのプレースホルダ — getVisualConfig で tonePreset を上書き */
@@ -212,8 +217,8 @@ export const VISUAL_PRESETS: Record<VisualPresetId, VisualConfig> = {
     world: { ...WORLD_BASE, defaultZoom: 1.0 },
     placement: {
       ...PLACEMENT_BASE,
-      sameGroupMinDist: 200,
-      fieldJitter: 0.78,
+      sameGroupMinDist: 165,
+      fieldJitter: 0.7,
       boundsInset: 0.04,
     },
     image: {
@@ -252,6 +257,63 @@ export const VISUAL_PRESETS: Record<VisualPresetId, VisualConfig> = {
       durationMs: 200,
     },
   },
+  /**
+   * DF 寄り: 輝度グレースケール + 暖色ティント。
+   * cultish-soft と同系のシーン表現だが、ColorMatrix の soft-mono 持ち上げは使わない。
+   */
+  'soft-tint': {
+    presetId: 'soft-tint',
+    background: {
+      color: BG_BASE,
+      gradientTop: BG_TOP,
+      gradientBottom: BG_BOTTOM,
+      gradientOpacity: 0.12,
+      noiseEnabled: true,
+      noiseOpacity: 0.14,
+      noiseTextureUrl: '/textures/noise-turbulence.png',
+      noiseTileSize: 200,
+      noiseBlendMode: 'soft-light',
+    },
+    world: WORLD_BASE,
+    placement: PLACEMENT_BASE,
+    image: {
+      grayscale: true,
+      toneMode: 'soft-tint',
+      contrast: 0.5,
+      brightness: 1,
+      listAlpha: 0.92,
+      greyscaleAmount: 1,
+      tintRgb: { ...SOFT_TINT_RGB },
+    },
+    depth: {
+      enabled: true,
+      layers: 3,
+      parallaxStrength: 0.16,
+      parallaxFar: 0.74,
+      parallaxMid: 0.9,
+      parallaxNear: 1.05,
+      scaleRange: [0.9, 1.04],
+      alphaRange: [0.84, 1],
+    },
+    float: {
+      enabled: false,
+      amplitudeY: 4.5,
+      amplitudeRot: 0.005,
+      speed: 0.2,
+    },
+    touchReaction: {
+      enabled: true,
+      strength: 0.085,
+      radius: 150,
+      lag: 0.1,
+    },
+    tapFocus: {
+      enabled: true,
+      scale: 1.06,
+      brightnessBoost: 0.06,
+      durationMs: 180,
+    },
+  },
 };
 
 export const DEFAULT_PRESET: VisualPresetId = 'cultish-soft';
@@ -264,6 +326,9 @@ export function getVisualConfig(
   tonePresetId: TonePresetId = DEFAULT_TONE_PRESET,
 ): VisualConfig {
   const config = JSON.parse(JSON.stringify(VISUAL_PRESETS[presetId])) as VisualConfig;
-  config.image = applyTonePresetToImage(config.image, tonePresetId);
+  // soft-tint は DF 相当の固定トーン。tone preset の bright/contrast は掛けない
+  if (config.image.toneMode !== 'soft-tint') {
+    config.image = applyTonePresetToImage(config.image, tonePresetId);
+  }
   return config;
 }

@@ -1,0 +1,98 @@
+{
+  "doc": "production-touch-gestures",
+  "version": "0.1",
+  "date": "2026-08-29",
+  "phase": 0,
+  "inputPrimary": "WinTouch-pointer-events",
+  "scenes": {
+    "AD_IDLE": {
+      "anyMonitor": {
+        "minFingers": 1,
+        "result": "global-ANIMATION"
+      }
+    },
+    "ANIMATION": {
+      "touch": "ignored",
+      "skip": false,
+      "fastForwardToList": false,
+      "logAllowed": true
+    },
+    "PRODUCT_LIST": {
+      "requiresLocalOverlay": "NONE",
+      "scope": "owning-monitor-clone-world",
+      "gestures": [
+        {
+          "id": "one-finger-tap",
+          "result": "IMAGE_ZOOM",
+          "hitRequired": true
+        },
+        {
+          "id": "one-finger-drag",
+          "result": "local-list-pan"
+        },
+        {
+          "id": "two-finger-pinch",
+          "result": "local-dolly-cruise",
+          "inheritedFrom": "demo-0820"
+        },
+        {
+          "id": "two-finger-vertical-stroke",
+          "result": "local-dolly-cruise",
+          "inheritedFrom": null,
+          "input": "centroid-delta-y",
+          "proposedSign": "up-equals-dive",
+          "signStatus": "open"
+        },
+        {
+          "id": "bubble",
+          "display": "touched-monitor-only"
+        },
+        {
+          "id": "hamburger",
+          "result": "local-CATEGORY_DRAWER"
+        }
+      ]
+    }
+  },
+  "overlays": {
+    "lockBackListOnOwningMonitor": true,
+    "doNotLockOtherMonitors": true,
+    "IMAGE_ZOOM": {
+      "close": ["backdrop-tap", "transparent-x-below-image", "top-right-x"],
+      "logoTappable": false,
+      "horizontalGallery": false
+    },
+    "CATEGORY_DRAWER": {
+      "close": ["hamburger-x", "scrim"],
+      "select": "CATEGORY_MODAL"
+    },
+    "CATEGORY_MODAL": {
+      "close": ["x"],
+      "horizontalSlide": true,
+      "paginationDots": true,
+      "returnTo": "NONE"
+    }
+  },
+  "pinchVersusVertical": {
+    "policy": "choose-dominant-not-sum",
+    "dominant": "larger-of-abs-delta-distance-vs-abs-centroid-y",
+    "status": "proposed"
+  },
+  "idleReset": {
+    "yes": [
+      "pointerdown",
+      "touchstart",
+      "drag-start",
+      "pinch-start",
+      "two-finger-vertical-start",
+      "overlay-open-close-select"
+    ],
+    "no": ["bubble-follow", "pointermove-without-down"]
+  },
+  "openQuestions": [
+    "vertical-dolly-sign",
+    "pinch-vertical-deadzone-px",
+    "category-modal-swipe-loop",
+    "drawer-width-320-vs-one-third-viewport"
+  ]
+}

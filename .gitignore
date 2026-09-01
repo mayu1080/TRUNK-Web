@@ -50,6 +50,11 @@ coverage/
 content/images/**/*
 !content/images/**/sample_*.svg
 
+# === Venue content binaries (USB at site; not cloned from GitHub) ===
+content/fonts/
+content/Logo/
+content/text/
+
 # === Docs: temporary artifacts ===
 docs/_xlsx_tmp/
 docs/*.zip

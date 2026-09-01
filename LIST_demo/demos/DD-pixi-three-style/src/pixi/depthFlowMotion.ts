@@ -3,12 +3,16 @@ import type { MotionConfig } from '../motionConfig';
 import type { ExploreScene, PlacedImage } from './exploreScene';
 import { depthLabelForFlow, type DepthFlowStageId } from './depthController';
 import { computeSignedFlowSpeed } from './depthFlowSpeed';
+import { isCameraNavigationMode } from './cameraDepth';
+import { pickStratifiedSceneZ } from './cameraDepthMotion';
 import type { ContentBounds } from './worldBounds';
 import { getWorldPanBounds, mergeBounds } from './worldBounds';
 import type { VisualConfig } from '../visualConfig';
 
 export interface DepthFlowState {
   flowDepth: number;
+  /** E-2: imageDepth - cameraDepth */
+  relativeDepth?: number;
   depthLabel: DepthFlowStageId;
   scaleMul: number;
   alphaMul: number;
@@ -69,11 +73,13 @@ function randomInBounds(bounds: ContentBounds): { x: number; y: number } {
   };
 }
 
-/** 配置時 — flowDepth / 方向 / 速度を付与 */
+/** 配置時 — flowDepth / imageDepth / 方向 / 速度を付与 */
 export function initDepthFlowParams(
   item: Pick<
     PlacedImage,
     | 'flowDepth'
+    | 'sceneZ'
+    | 'sceneZDriftMul'
     | 'flowSpeed'
     | 'flowSpeedVariance'
     | 'flowDirX'
@@ -86,6 +92,8 @@ export function initDepthFlowParams(
   const { depthFlow } = motion;
   if (!depthFlow.enabled) {
     item.flowDepth = 0;
+    item.sceneZ = 0;
+    item.sceneZDriftMul = 1;
     item.flowSpeed = 0;
     item.flowSpeedVariance = 0;
     item.flowDirX = 0;
@@ -94,13 +102,25 @@ export function initDepthFlowParams(
     return;
   }
 
+  const angle = rand() * Math.PI * 2;
+  item.flowDirX = Math.cos(angle);
+  item.flowDirY = Math.sin(angle);
+
+  if (depthFlow.depthMode === 'camera-navigation') {
+    item.sceneZ = pickStratifiedSceneZ(rand, motion);
+    const variance = motion.cameraDepth.sceneDriftVariance;
+    item.sceneZDriftMul = 1 + (rand() * 2 - 1) * variance;
+    item.flowDepth = 0;
+    item.flowSpeed = 0;
+    item.flowSpeedVariance = 0;
+    item.flowMotionDistance = 0;
+    return;
+  }
+
   item.flowDepth = rand();
   item.flowSpeedVariance = (rand() * 2 - 1) * depthFlow.speedVariance;
   item.flowSpeed = computeSignedFlowSpeed(item.flowSpeedVariance);
 
-  const angle = rand() * Math.PI * 2;
-  item.flowDirX = Math.cos(angle);
-  item.flowDirY = Math.sin(angle);
   item.flowMotionDistance = lerp(
     depthFlow.motionDistanceMin,
     depthFlow.motionDistanceMax,
@@ -213,6 +233,23 @@ export function integrateDepthFlow(
       depthLabel: depthLabelForFlow(d),
       respawned: false,
       ...visuals,
+    };
+  }
+
+  if (depthFlow.depthMode === 'camera-navigation') {
+    const d = item.depth;
+    return {
+      flowDepth: d,
+      depthLabel: depthLabelForFlow(d),
+      respawned: false,
+      scaleMul: 1,
+      alphaMul: 1,
+      brightnessMul: 1,
+      contrastMul: 1,
+      blurStrength: 0,
+      offsetX: 0,
+      offsetY: 0,
+      renderOrder: computeRenderOrder(d, item.stableIndex),
     };
   }
 

@@ -3,6 +3,10 @@ import type { VisualConfig } from '../visualConfig';
 import { resolveNoiseTextureUrl } from './noiseTexture';
 import type { TonePresetId, VisualPresetId } from '../visualConfig';
 import { TONE_PRESET_IDS, TONE_PRESETS } from '../visualConfig';
+import type { DepthFlowMode } from '../motionConfig';
+import { DEFAULT_DEPTH_MODE } from '../demoIdentity';
+import { MOTION_CONFIG } from '../motionConfig';
+import { setDepthFlowMode } from '../pixi/cameraDepth';
 
 interface NoiseOverlayProps {
   config: VisualConfig;
@@ -92,9 +96,25 @@ export function VisualToggles({
   uiMode,
   onUiModeChange,
 }: VisualTogglesProps) {
+  const [depthMode, setDepthMode] = useState<DepthFlowMode>(DEFAULT_DEPTH_MODE);
+
   return (
     <div className="demo-toggles">
       <p className="demo-toggles-hint">G/D: debug · R: review</p>
+      <label>
+        depth mode
+        <select
+          value={depthMode}
+          onChange={(e) => {
+            const mode = e.target.value as DepthFlowMode;
+            setDepthFlowMode(mode);
+            setDepthMode(mode);
+          }}
+        >
+          <option value="camera-navigation">camera-navigation (E-2)</option>
+          <option value="object-flow">object-flow (E)</option>
+        </select>
+      </label>
       <label>
         visual preset
         <select
@@ -104,6 +124,7 @@ export function VisualToggles({
           <option value="clean">clean</option>
           <option value="cultish-soft">cultish-soft</option>
           <option value="cultish-heavy">cultish-heavy</option>
+          <option value="soft-tint">soft-tint (DF-like)</option>
         </select>
       </label>
       <label>
@@ -111,7 +132,12 @@ export function VisualToggles({
         <select
           value={tonePresetId}
           onChange={(e) => onTonePresetChange(e.target.value as TonePresetId)}
-          title={TONE_PRESETS[tonePresetId].description}
+          title={
+            presetId === 'soft-tint'
+              ? 'soft-tint では DF 相当の固定トーンを使用（tone preset 非適用）'
+              : TONE_PRESETS[tonePresetId].description
+          }
+          disabled={presetId === 'soft-tint'}
         >
           {TONE_PRESET_IDS.map((id) => (
             <option key={id} value={id} title={TONE_PRESETS[id].description}>

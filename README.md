@@ -16,6 +16,20 @@
 
 詳細は `docs/architecture.md` / `docs/content-schema.md` / `app/README.md` を参照。
 
+## 現場プレ実機検証（Phase 7）
+
+production app の現場確認は **4 タッチ画面 + 管理画面**。管理画面は Windows / Debug / ログ用で、**5 枚目の production window ではない**。
+
+| 用途 | リンク |
+|------|--------|
+| 最小手順・起動前 checklist | [`docs/production/phase7-site-preflight.md`](docs/production/phase7-site-preflight.md) |
+| 起動後 QA | [`docs/production/phase7-site-qa-checklist.md`](docs/production/phase7-site-qa-checklist.md) |
+| 仕様固定メモ（4 面同期 / overlay / 120 秒 idle） | [`docs/production/production-runtime-spec.md`](docs/production/production-runtime-spec.md) |
+
+現場メイン起動: リポジトリ直下 `launch-production.bat`、または `cd app` → `npm run start:production`。preview は 4 面合格の代替にしない。
+
+production shell の状態 ID は `AD_IDLE` / `ANIMATION` / `PRODUCT_LIST` + 面ごとの overlay。下記の `TOP` / 10 分 idle は歴史的な function.xlsx 記述であり、現場運用の正ではない。
+
 ## 正（Source of Truth）
 
 矛盾時は以下の優先順位で解釈してください。
@@ -89,6 +103,9 @@
 
 | ファイル | 用途 |
 |----------|------|
+| `docs/production/phase7-site-preflight.md` | 現場起動前 checklist・monitor-layout・troubleshooting |
+| `docs/production/phase7-site-qa-checklist.md` | 現場起動後 QA |
+| `docs/production/production-runtime-spec.md` | production 起動コマンドと runtime 仕様 |
 | `docs/handover.md` | 引き継ぎ・受入チェックリスト |
 | `docs/open-questions.example.md` | 未決事項テンプレ（Git 管理） |
 | `docs/architecture.md` | 実施設計（Electron / content / 責務分担） |
