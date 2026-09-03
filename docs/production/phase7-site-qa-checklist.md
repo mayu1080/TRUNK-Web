@@ -4,16 +4,18 @@
 
 仕様: [`production-runtime-spec.md`](./production-runtime-spec.md)。起動前: [`phase7-site-preflight.md`](./phase7-site-preflight.md)。
 
-**管理画面には production window が出ないこと。** Debug は管理 PC のキーボードで各 content window にフォーカスして `D` → `P`。
+**管理画面には production LIST/広告が出ないこと。** 余ったディスプレイに認識モニター一覧の管理コンソールが出る。Debug は管理 PC のキーボードで各 content window にフォーカスして `D` → `P`。
 
 ---
 
 ## 1. 起動
 
-- [ ] **4 window** が出る
+- [ ] **4 枚の content window** が出る
 - [ ] **管理画面には production window が出ない**
+- [ ] 余ったディスプレイに **管理コンソール**（OS ディスプレイ id / 役割 / bounds）が出る
 - [ ] 4 window が正しいタッチモニターに配置される
 - [ ] 起動初期は **AD_IDLE**
+- [ ] AD_IDLE で `content/ads/` の mp4 が流れる（無ければプレースホルダ。touch は通る）
 - [ ] topbar（`D`）に `PREVIEW` / `DEV FALLBACK` が **出ていない**（出ていたら本番コマンドではない、または 4 面未満）
 - [ ] `BOUNDS MISMATCH` が出る場合、差分が小さく面の対応が正しいこと。大きければ layout 修正して再起動
 
@@ -21,11 +23,11 @@
 
 ## 2. AD_IDLE / ANIMATION
 
-- [ ] どの画面を touch しても **4 面とも ANIMATION** へ移行
+- [ ] 広告（どの画面でも）を touch すると **4 面とも ANIMATION** へ移行
 - [ ] ANIMATION mp4 が流れる（`LogoMotion_Trunk.mp4`）
 - [ ] ANIMATION 中 touch で **skip されない**（再生が続く）
 - [ ] 終了後 **4 面とも PRODUCT_LIST** へ移行
-- [ ] Debug: `animationVideoMode` / `animationVideoFiles`
+- [ ] Debug: `adsVideoMode` / `adsVideoFiles` / `animationVideoMode` / `animationVideoFiles`
 
 ---
 

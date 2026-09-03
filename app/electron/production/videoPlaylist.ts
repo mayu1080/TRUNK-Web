@@ -49,10 +49,11 @@ function asPositiveMs(value: unknown, fallback: number): number {
 
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov']);
 
-function listAnimationMedia(contentRoot: string): string[] {
+function listKindMedia(contentRoot: string, kind: 'ads' | 'animation'): string[] {
+  const dir = kind === 'ads' ? 'ads' : 'animation';
   let abs: string;
   try {
-    abs = resolveContentPath(contentRoot, 'animation');
+    abs = resolveContentPath(contentRoot, dir);
   } catch {
     return [];
   }
@@ -66,7 +67,7 @@ function listAnimationMedia(contentRoot: string): string[] {
         return fs.existsSync(full) && fs.statSync(full).isFile() && VIDEO_EXTS.has(path.extname(name).toLowerCase());
       })
       .sort((a, b) => a.localeCompare(b, 'en'))
-      .map((name) => `animation/${name}`);
+      .map((name) => `${dir}/${name}`);
   } catch {
     return [];
   }
@@ -86,7 +87,11 @@ function makeTrack(contentRoot: string, monitorId: number, file: string): VideoT
 }
 
 /** One file → all monitors. monitor-N.mp4 → that monitor. Else sorted files by monitor index. */
-function fillMissingAnimationTracks(contentRoot: string, tracks: VideoTrackInfo[]): VideoTrackInfo[] {
+function fillMissingTracks(
+  contentRoot: string,
+  kind: 'ads' | 'animation',
+  tracks: VideoTrackInfo[],
+): VideoTrackInfo[] {
   const found = tracks.filter((track) => track.found);
   const unique = [...new Set(found.map((track) => track.relativePath))];
   if (unique.length === 1 && found.length < MONITOR_IDS.length) {
@@ -94,7 +99,7 @@ function fillMissingAnimationTracks(contentRoot: string, tracks: VideoTrackInfo[
   }
   if (found.length > 0) return tracks;
 
-  const files = listAnimationMedia(contentRoot);
+  const files = listKindMedia(contentRoot, kind);
   if (files.length === 0) return tracks;
   if (files.length === 1) {
     return MONITOR_IDS.map((id) => makeTrack(contentRoot, id, files[0]!));
@@ -164,18 +169,16 @@ export function loadVideoPlaylist(
   const raw = readJsonIfPresent(jsonPath);
   const warnings: string[] = [];
   let tracks = resolveTracks(contentRoot, raw?.tracks, kind);
-  if (kind === 'animation') {
-    const before = tracks.filter((track) => track.found).length;
-    tracks = fillMissingAnimationTracks(contentRoot, tracks);
-    const after = tracks.filter((track) => track.found).length;
-    if (before === 0 && after > 0) {
-      const files = [...new Set(tracks.filter((track) => track.found).map((track) => track.relativePath))];
-      warnings.push(
-        files.length === 1
-          ? `animation json/convention paths missing; using ${files[0]} on all monitors`
-          : `animation json/convention paths missing; assigned ${files.join(', ')}`,
-      );
-    }
+  const before = tracks.filter((track) => track.found).length;
+  tracks = fillMissingTracks(contentRoot, kind, tracks);
+  const after = tracks.filter((track) => track.found).length;
+  if (before === 0 && after > 0) {
+    const files = [...new Set(tracks.filter((track) => track.found).map((track) => track.relativePath))];
+    warnings.push(
+      files.length === 1
+        ? `${kind} json/convention paths missing; using ${files[0]} on all monitors`
+        : `${kind} json/convention paths missing; assigned ${files.join(', ')}`,
+    );
   }
   const missing = tracks.filter((t) => !t.found);
   if (missing.length > 0) {

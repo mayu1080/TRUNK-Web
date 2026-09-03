@@ -190,6 +190,9 @@ export interface ContentImageValidationSummary {
   animationDirExists?: boolean;
   animationVideoMode?: 'single-shared' | 'per-monitor' | 'missing';
   animationVideoFiles?: string[];
+  adsDirExists?: boolean;
+  adsVideoMode?: 'single-shared' | 'per-monitor' | 'missing';
+  adsVideoFiles?: string[];
   fontsDirExists?: boolean;
   fontFileCount?: number;
 }

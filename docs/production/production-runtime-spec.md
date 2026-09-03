@@ -38,17 +38,18 @@ Windows 現場:
 
 ## 4 画面 + 管理画面の規定ルール
 
-**管理画面は 5 枚目の production window ではない。** 管理画面用に 5 つ目の BrowserWindow を出さない。
+**管理画面は 5 枚目の production window ではない。** 来場者向け content window は常に 4 枚だけ。
 
 | ディスプレイ | 役割 | production window | `monitor-layout.json` |
 |--------------|------|-------------------|------------------------|
 | 4 画面タッチモニター | 来場者向けコンテンツ | **配置対象（4 枚だけ）** | **含める（monitorId 1..4）** |
-| 管理画面 | Windows 操作、PowerShell / Cursor / Explorer、Debug 確認、ログ確認、タスクマネージャー | **配置しない** | **含めない** |
+| 管理画面 | Windows 操作、PowerShell / Cursor / Explorer、**認識モニター一覧**、ログ、タスクマネージャー | **本番 LIST/広告は出さない** | **含めない** |
 
-Windows の「ディスプレイ設定」では管理画面を含めた **全ディスプレイが見える**。ただし app 側が出す **content window は 4 枚だけ**。
+Windows の「ディスプレイ設定」では管理画面を含めた **全ディスプレイが見える**。app 側の **content window は 4 枚だけ**。余ったディスプレイ（通常は管理 PC 画面）に、認識モニターを表示する **管理コンソール** を出す。これは production renderer ではなく、配置確認用の別窓。
 
 - 管理画面の解像度・座標は、大画面レイアウト計算に含めない
-- 一致時、余った OS ディスプレイは `management display excluded` としてログに出す（window は作らない）
+- 一致時、余った OS ディスプレイは `management display excluded` → 管理コンソールの配置先
+- 余ったディスプレイが無い（タッチ 4 面だけの）ときは管理コンソールは出さない
 - 4 面の順番は実機の物理配置と `monitorId` 1→2→3→4 が一致していること
 
 ---
@@ -59,7 +60,7 @@ Windows の「ディスプレイ設定」では管理画面を含めた **全デ
 
 | 値 | 意味 |
 |----|------|
-| `AD_IDLE` | 起動初期。広告ループ。どの面を touch しても 4 面とも ANIMATION へ |
+| `AD_IDLE` | 起動初期。`content/ads/` の mp4 をループ。どの面を touch しても 4 面とも ANIMATION へ |
 | `ANIMATION` | 入場 mp4。**touch skip なし**。終了後 4 面とも PRODUCT_LIST |
 | `PRODUCT_LIST` | LIST。各面の操作は独立 |
 
@@ -160,6 +161,7 @@ content/
     flower/
     cover/
   text/
+  ads/
   animation/
   Logo/
   fonts/
@@ -171,11 +173,13 @@ content/
 
 Phase 7 で確認すること:
 
+- AD_IDLE で `content/ads/` の mp4 が流れる（`ads/monitor-1.mp4` など。1 本だけなら 4 面共通）
+- 広告を touch すると 4 面 ANIMATION へ進む
+- animation mp4 が再生される（現行 `content/animation/LogoMotion_Trunk.mp4`。mp4 があるとき runtime は `media-ended` 待ち）
 - list 画像が出る（`content/images/list/`）
 - Food carousel が意図通り（`images/food/` + `categories.json`）
 - cover / コース表紙が意図通り（`images/cover/`）
 - text が IMAGE_ZOOM / Category modal に出る（`content/text/`、現行 `TOKYO FOOD.txt`）
-- animation mp4 が再生される（現行 `content/animation/LogoMotion_Trunk.mp4`。mp4 があるとき runtime は `media-ended` 待ち）
 - Logo が出る（`content/Logo/`）
 - MaisonNeue 等の font がある場合は読み込まれる（`content/fonts/`）
 
@@ -183,7 +187,9 @@ Phase 7 で確認すること:
 
 ## Debug / 管理画面で見る情報
 
-既定は **review**（topbar / debug 非表示、frameless）。管理画面のキーボードで **production window にフォーカス**してから操作する。
+管理コンソール（余ったディスプレイ）: OS が認識した全ディスプレイ、役割（本番 4 面 / 管理画面）、production window の displayId、ads / animation の found。
+
+既定の content window は **review**（topbar / debug 非表示、frameless）。キーボードで **production window にフォーカス**してから操作する。
 
 | キー | 実装 |
 |------|------|

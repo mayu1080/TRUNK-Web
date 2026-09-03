@@ -65,7 +65,7 @@ mustNotContain(path.join(src, 'overlays', 'CategoryModal.tsx'), [
 mustContain(path.join(src, 'imageCopy.ts'), ['TOKYO FOOD.txt', 'sharedTitle']);
 mustContain(path.join(src, 'contentCards.ts'), ['instanceId', 'sourceImageId', 'seededShuffle']);
 mustContain(path.join(app, 'electron', 'production', 'videoPlaylist.ts'), [
-  'fillMissingAnimationTracks',
+  'fillMissingTracks',
   'using ${files[0]} on all monitors',
 ]);
 mustContain(path.join(app, 'electron', 'content', 'contentImageValidation.ts'), [

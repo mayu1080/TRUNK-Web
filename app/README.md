@@ -55,6 +55,8 @@ npm run start:0820-color
 
 ### Production shell（`TRUNK_DEMO=production`）
 
+**現場オペレーター（インストール・起動・エラー）:** [`引継ぎ手順書/README.md`](../引継ぎ手順書/README.md)
+
 **現場プレ実機（Phase 7）の最小手順:** [`docs/production/phase7-site-preflight.md`](../docs/production/phase7-site-preflight.md) → QA [`phase7-site-qa-checklist.md`](../docs/production/phase7-site-qa-checklist.md) → 仕様 [`production-runtime-spec.md`](../docs/production/production-runtime-spec.md)。
 
 本番 4 window は `npm run start:production`（リポジトリ直下 `launch-production.bat`）。管理画面用に 5 つ目の window は出さない。`start:production:preview` は 1 画面 UI 確認専用。

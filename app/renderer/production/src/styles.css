@@ -22,6 +22,7 @@ body,
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  touch-action: manipulation;
   --chrome-fab-right: 14px;
   --chrome-fab-size: 52px;
   --drawer-width: calc(100vw / 3);
@@ -107,8 +108,20 @@ button {
   z-index: 2;
 }
 
+.scene-AD_IDLE .scene-video:not([hidden]),
 .scene-ANIMATION .scene-video:not([hidden]) {
   z-index: 3;
+}
+
+.ad-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .scene-stage {

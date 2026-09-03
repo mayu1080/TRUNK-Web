@@ -85,14 +85,8 @@ async function main() {
   coordinator.dispatch(2, { type: 'AD_IDLE_TOUCH' });
   if (coordinator.getGlobalScene() !== 'ANIMATION') fail('any-monitor AD_IDLE_TOUCH → ANIMATION');
 
-  try {
-    coordinator.dispatch(3, { type: 'AD_IDLE_TOUCH' });
-    fail('AD_IDLE_TOUCH during ANIMATION must throw');
-  } catch (err) {
-    if (!(err instanceof Error) || !err.message.includes('AD_IDLE_TOUCH')) {
-      fail(`unexpected AD_IDLE_TOUCH error: ${err}`);
-    }
-  }
+  coordinator.dispatch(3, { type: 'AD_IDLE_TOUCH' });
+  if (coordinator.getGlobalScene() !== 'ANIMATION') fail('AD_IDLE_TOUCH during ANIMATION is a no-op');
 
   coordinator.dispatch(1, { type: 'ANIMATION_COMPLETE' });
   if (coordinator.getGlobalScene() !== 'PRODUCT_LIST') fail('ANIMATION_COMPLETE → PRODUCT_LIST');

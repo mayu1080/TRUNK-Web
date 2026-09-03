@@ -108,12 +108,15 @@ mustContain(path.join(src, 'App.tsx'), [
   "type: 'AD_IDLE_TOUCH'",
   "type: 'ANIMATION_COMPLETE'",
   "type: 'REPORT_TOUCH_ACTIVITY'",
+  'ad-hit',
 ]);
-mustContain(path.join(app, 'electron', 'main.ts'), ["type: 'GLOBAL_IDLE_TIMEOUT'"]);
+mustContain(path.join(app, 'electron', 'main.ts'), ["type: 'GLOBAL_IDLE_TIMEOUT'", 'openManagementConsole']);
 mustNotContain(path.join(src, 'overlays', 'CategoryModal.tsx'), ['category-modal__dots']);
 mustContain(path.join(src, 'overlays', 'CategoryModal.tsx'), ['stopScrollLeak']);
 mustContain(path.join(app, 'shared', 'idleConfig.ts'), ['PRODUCTION_SHELL_IDLE_TIMEOUT_SECONDS = 120']);
-mustContain(path.join(app, 'electron', 'production', 'videoPlaylist.ts'), ['skipOnTouch: false']);
+mustContain(path.join(app, 'electron', 'production', 'videoPlaylist.ts'), ['skipOnTouch: false', 'fillMissingTracks']);
+mustContain(path.join(app, 'electron', 'production', 'managementConsole.html'), ['認識しているディスプレイ']);
+mustContain(path.join(contentRoot, 'ads.json'), ['ads/monitor-1.mp4']);
 mustContain(path.join(contentRoot, 'animation.json'), ['animation/LogoMotion_Trunk.mp4']);
 
 const animation = JSON.parse(fs.readFileSync(path.join(contentRoot, 'animation.json'), 'utf8'));
@@ -152,6 +155,19 @@ if (!fourWrongSize.boundsMismatch) fail('4 landscape displays should mismatch po
 if (fourWrongSize.isDevFallback) fail('4 physical displays should map 1:1 even when coords differ');
 if (fourWrongSize.windows.length !== 4) fail('4 physical displays should still open 4 windows');
 if (fourWrongSize.shouldQuit) fail('non-fatal mismatch must not quit');
+
+const fiveDisplays = resolveWindowPlacement(layout, [
+  display(11, 0, 0, 1080, 1920),
+  display(12, 1080, 0, 1080, 1920),
+  display(13, 2160, 0, 1080, 1920),
+  display(14, 3240, 0, 1080, 1920),
+  display(15, 4320, 0, 1920, 1080),
+], unpackaged);
+if (fiveDisplays.windows.length !== 4) fail('5 OS displays still open only 4 production windows');
+if (!fiveDisplays.managementDisplayIds.includes(15)) fail('5th display must be management leftover');
+if (fiveDisplays.windows.some((row) => row.matchedDisplayId === 15)) {
+  fail('management display must not host a production window');
+}
 
 const fatalLayout = { ...layout, fatalOnBoundsMismatch: true };
 const fatalQuit = resolveWindowPlacement(fatalLayout, [display(1, 0, 0, 1920, 1080)], unpackaged);

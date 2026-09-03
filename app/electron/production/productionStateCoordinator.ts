@@ -180,6 +180,9 @@ export class ProductionStateCoordinator {
         this.setGlobalScene(action.scene);
         break;
       case 'AD_IDLE_TOUCH':
+        if (this.globalScene === 'ANIMATION') {
+          return this.snapshotFor(monitorId);
+        }
         if (this.globalScene !== 'AD_IDLE') {
           throw new Error(`AD_IDLE_TOUCH requires globalScene=AD_IDLE (got ${this.globalScene})`);
         }

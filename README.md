@@ -18,10 +18,13 @@
 
 ## 現場プレ実機検証（Phase 7）
 
+**当日のオペレーター手順（インストール・起動・エラー）:** [`引継ぎ手順書/README.md`](引継ぎ手順書/README.md)
+
 production app の現場確認は **4 タッチ画面 + 管理画面**。管理画面は Windows / Debug / ログ用で、**5 枚目の production window ではない**。
 
 | 用途 | リンク |
 |------|--------|
+| 現場オペレーター引継ぎ | [`引継ぎ手順書/README.md`](引継ぎ手順書/README.md) |
 | 最小手順・起動前 checklist | [`docs/production/phase7-site-preflight.md`](docs/production/phase7-site-preflight.md) |
 | 起動後 QA | [`docs/production/phase7-site-qa-checklist.md`](docs/production/phase7-site-qa-checklist.md) |
 | 仕様固定メモ（4 面同期 / overlay / 120 秒 idle） | [`docs/production/production-runtime-spec.md`](docs/production/production-runtime-spec.md) |
@@ -109,6 +112,7 @@ production shell の状態 ID は `AD_IDLE` / `ANIMATION` / `PRODUCT_LIST` + 面
 
 | ファイル | 用途 |
 |----------|------|
+| `引継ぎ手順書/README.md` | **現場オペレーター当日手順**（install / 起動 / エラー） |
 | `docs/production/phase7-site-preflight.md` | 現場起動前 checklist・monitor-layout・troubleshooting |
 | `docs/production/phase7-site-qa-checklist.md` | 現場起動後 QA |
 | `docs/production/production-runtime-spec.md` | production 起動コマンドと runtime 仕様 |
