@@ -125,12 +125,10 @@ if (!Array.isArray(animation.tracks) || animation.tracks.length !== 4) fail('ani
 
 const unpackaged = { isPackaged: false };
 
-const matched = resolveWindowPlacement(layout, [
-  display(11, 0, 0, 1080, 1920),
-  display(12, 1080, 0, 1080, 1920),
-  display(13, 2160, 0, 1080, 1920),
-  display(14, 3240, 0, 1080, 1920),
-], unpackaged);
+const matchedDisplays = layout.monitors.map((row, i) =>
+  display(11 + i, row.x, row.y, row.width, row.height),
+);
+const matched = resolveWindowPlacement(layout, matchedDisplays, unpackaged);
 if (matched.boundsMismatch) fail('4 portrait 1080x1920 at layout coords should match');
 if (matched.isDevFallback) fail('matched 4-screen must not use tiled fallback');
 if (matched.windows.length !== 4) fail('matched placement should open 4 windows');
@@ -156,17 +154,28 @@ if (fourWrongSize.isDevFallback) fail('4 physical displays should map 1:1 even w
 if (fourWrongSize.windows.length !== 4) fail('4 physical displays should still open 4 windows');
 if (fourWrongSize.shouldQuit) fail('non-fatal mismatch must not quit');
 
+const maxX = Math.max(...layout.monitors.map((row) => row.x + row.width));
 const fiveDisplays = resolveWindowPlacement(layout, [
-  display(11, 0, 0, 1080, 1920),
-  display(12, 1080, 0, 1080, 1920),
-  display(13, 2160, 0, 1080, 1920),
-  display(14, 3240, 0, 1080, 1920),
-  display(15, 4320, 0, 1920, 1080),
+  ...matchedDisplays,
+  display(15, maxX, 0, 1920, 1080),
 ], unpackaged);
 if (fiveDisplays.windows.length !== 4) fail('5 OS displays still open only 4 production windows');
 if (!fiveDisplays.managementDisplayIds.includes(15)) fail('5th display must be management leftover');
 if (fiveDisplays.windows.some((row) => row.matchedDisplayId === 15)) {
   fail('management display must not host a production window');
+}
+
+const laptopPlusKiosks = resolveWindowPlacement(layout, [
+  display(1, 0, 0, 1280, 720),
+  ...matchedDisplays,
+], unpackaged);
+if (laptopPlusKiosks.windows.length !== 4) fail('laptop + 4 kiosks must still open 4 windows');
+if (laptopPlusKiosks.windows.some((row) => row.matchedDisplayId === 1)) {
+  fail('1280x720 management/laptop display must not host a production window');
+}
+if (laptopPlusKiosks.isDevFallback) fail('5 displays with 4 kiosk-sized panels must not tile on primary');
+if (!laptopPlusKiosks.managementDisplayIds.includes(1)) {
+  fail('1280x720 display should be the management leftover');
 }
 
 const fatalLayout = { ...layout, fatalOnBoundsMismatch: true };

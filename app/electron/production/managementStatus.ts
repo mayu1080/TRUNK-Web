@@ -39,6 +39,10 @@ export interface ManagementStatus {
     y: number;
     width: number;
     height: number;
+    configX: number;
+    configY: number;
+    configWidth: number;
+    configHeight: number;
     boundsMismatch: boolean;
   }>;
   managementDisplayIds: number[];
@@ -114,6 +118,10 @@ export function buildManagementStatus(input: {
       y: row.bounds.y,
       width: row.bounds.width,
       height: row.bounds.height,
+      configX: row.config.x,
+      configY: row.config.y,
+      configWidth: row.config.width,
+      configHeight: row.config.height,
       boundsMismatch: row.boundsMismatch,
     })),
     managementDisplayIds: [...input.placement.managementDisplayIds],

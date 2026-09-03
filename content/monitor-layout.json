@@ -4,45 +4,45 @@
   "monitors": [
     {
       "monitorId": 1,
-      "x": 0,
+      "x": 1280,
       "y": 0,
       "width": 1080,
       "height": 1920,
       "orientation": "portrait",
-      "viewportOffsetX": 0,
+      "viewportOffsetX": 1280,
       "viewportOffsetY": 0,
       "scale": 1
     },
     {
       "monitorId": 2,
-      "x": 1080,
+      "x": 2360,
       "y": 0,
       "width": 1080,
       "height": 1920,
       "orientation": "portrait",
-      "viewportOffsetX": 1080,
+      "viewportOffsetX": 2360,
       "viewportOffsetY": 0,
       "scale": 1
     },
     {
       "monitorId": 3,
-      "x": 2160,
+      "x": 3440,
       "y": 0,
       "width": 1080,
       "height": 1920,
       "orientation": "portrait",
-      "viewportOffsetX": 2160,
+      "viewportOffsetX": 3440,
       "viewportOffsetY": 0,
       "scale": 1
     },
     {
       "monitorId": 4,
-      "x": 3240,
+      "x": 4520,
       "y": 0,
       "width": 1080,
       "height": 1920,
       "orientation": "portrait",
-      "viewportOffsetX": 3240,
+      "viewportOffsetX": 4520,
       "viewportOffsetY": 0,
       "scale": 1
     }

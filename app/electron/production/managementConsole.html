@@ -54,7 +54,7 @@
   <h2 style="font-size:15px;margin:0 0 6px">本番 4 window</h2>
   <table>
     <thead>
-      <tr><th>monitorId</th><th>displayId</th><th>window bounds</th><th>mismatch</th></tr>
+      <tr><th>monitorId</th><th>displayId</th><th>JSON (monitor-layout)</th><th>window / OS</th><th>mismatch</th></tr>
     </thead>
     <tbody id="windows"></tbody>
   </table>
@@ -93,11 +93,15 @@
       }).join('');
 
       document.getElementById('windows').innerHTML = status.productionWindows.map(function (w) {
+        const jsonB = (w.configWidth || w.configHeight)
+          ? (w.configWidth + '×' + w.configHeight + ' @' + w.configX + ',' + w.configY)
+          : '—';
         return '<tr>' +
           '<td>' + w.monitorId + '</td>' +
           '<td>' + (w.displayId == null ? '—' : w.displayId) + '</td>' +
+          '<td>' + jsonB + '</td>' +
           '<td>' + w.width + '×' + w.height + ' @' + w.x + ',' + w.y + '</td>' +
-          '<td>' + (w.boundsMismatch ? 'mismatch' : 'ok') + '</td>' +
+          '<td class="' + (w.boundsMismatch ? 'miss' : 'ok') + '">' + (w.boundsMismatch ? 'mismatch（JSON≠OS）' : 'ok') + '</td>' +
           '</tr>';
       }).join('');
 

@@ -112,6 +112,31 @@ function sortDisplays(displays: Display[]): Display[] {
   return [...displays].sort((a, b) => a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y || a.id - b.id);
 }
 
+function sizeWithinTolerance(display: Display, monitor: MonitorLayoutEntry, tolerance: number): boolean {
+  const rect = displayRect(display);
+  return Math.abs(rect.width - monitor.width) <= tolerance && Math.abs(rect.height - monitor.height) <= tolerance;
+}
+
+/** Prefer kiosk-sized displays over a laptop/management panel when JSON x,y do not match. */
+function assignDisplaysBySizeThenOrder(
+  monitors: MonitorLayoutEntry[],
+  sorted: Display[],
+  tolerance: number,
+): { assigned: Display[]; leftover: Display[] } {
+  const remaining = [...sorted];
+  const assigned: Display[] = [];
+  for (const monitor of monitors) {
+    const index = remaining.findIndex((display) => sizeWithinTolerance(display, monitor, tolerance));
+    if (index >= 0) {
+      assigned.push(remaining.splice(index, 1)[0]!);
+    }
+  }
+  while (assigned.length < monitors.length && remaining.length > 0) {
+    assigned.push(remaining.shift()!);
+  }
+  return { assigned, leftover: remaining };
+}
+
 function workAreaRect(display: Display): Rect {
   return {
     x: display.workArea.x,
@@ -285,10 +310,13 @@ export function resolveWindowPlacement(
   }
 
   if (sorted.length >= 4) {
-    const assigned = sorted.slice(0, 4);
-    const management = sorted.slice(4);
+    const { assigned, leftover: management } = assignDisplaysBySizeThenOrder(
+      layout.monitors,
+      sorted,
+      tolerance,
+    );
     warnings.push(
-      `using 4 physical displays by OS order (x,y); config coordinates did not match (not a 1-screen tiled fallback)`,
+      `using ${assigned.length} physical displays by size then OS order (x,y); config coordinates did not match (not a 1-screen tiled fallback)`,
     );
     management.forEach((display) => {
       warnings.push(
