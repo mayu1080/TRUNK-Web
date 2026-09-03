@@ -17,7 +17,8 @@ production app（`TRUNK_DEMO=production`）の現場仕様。UI 再デザイン�
 
 | # | コマンド | 用途 | 現場 4 面の正か |
 |---|----------|------|-----------------|
-| 1 | `npm run start:production` | 本番想定。4 BrowserWindow。**AD_IDLE 開始**。4 面同期確認。現場プレ実機検証のメイン | **正** |
+| 1 | `npm run start:production` | 本番想定。4 BrowserWindow。**AD_IDLE 開始**。preview env を消す。現場プレ実機検証のメイン | **正** |
+| 1b | `npm run start:production:site` | JSON の width/height を窓サイズに使わず、OS `display.bounds` に全面配置。縦が短いときの現場回避 | 窓が全面にならないとき |
 | 2 | `npm run start:production:preview` | 1 画面で UI 確認。**PRODUCT_LIST 直行**（AD_IDLE / ANIMATION をスキップ）。デザイン微修正 | **使わない** |
 | 3 | `npm run start:production:preview:multi` | 4 window 挙動確認。AD_IDLE 開始。本番に近いが preview 扱い。開発 PC で 4 window の状態確認 | **代替にしない** |
 | 4 | `npm run check:production-content` | `content/` の list / food / cover / text / animation / Logo / fonts 等を確認 | 起動前 |

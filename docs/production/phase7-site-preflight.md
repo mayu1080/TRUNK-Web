@@ -43,6 +43,9 @@ git clone --single-branch --depth 1 -b feature/production-phase7 https://github.
 - [ ] `npm run build` と `npm run build:production` が通る（`build-production.bat`）
 - [ ] `content/monitor-layout.json` が現場構成に合っている（下の手順）
 - [ ] `npm run start:production` で起動できる（`launch-production.bat`）
+- [ ] 窓が縦に短いときは `npm run start:production:site`（`launch-production-site.bat`）。preview 用の環境変数が残っていないこと
+
+`start:production` は PowerShell に残った `TRUNK_PRODUCTION_PREVIEW_*` を消してから起動する。現場 4 面で preview scale を使わない。
 
 任意: `npm run check:production-phase7`（4 面物理なしでも layout / overlay 契約を確認）。
 

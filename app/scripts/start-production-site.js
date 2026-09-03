@@ -18,6 +18,7 @@ for (const key of PREVIEW_ENV_KEYS) {
 
 process.env.TRUNK_DEMO = 'production';
 process.env.TRUNK_PRODUCTION_FORCE_NO_PREVIEW = '1';
+process.env.TRUNK_SITE_AUTO_BOUNDS = '1';
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const child = spawn(npmCmd, ['run', 'start'], {

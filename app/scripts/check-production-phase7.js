@@ -78,6 +78,7 @@ mustContain(path.join(root, 'README.md'), ['docs/production/phase7-site-prefligh
 
 const siteBats = [
   ['launch-production.bat', 'npm run start:production'],
+  ['launch-production-site.bat', 'npm run start:production:site'],
   ['launch-production-preview.bat', 'npm run start:production:preview'],
   ['check-production-content.bat', 'npm run check:production-content'],
   ['build-production.bat', 'npm run build:production'],
@@ -110,7 +111,15 @@ mustContain(path.join(src, 'App.tsx'), [
   "type: 'REPORT_TOUCH_ACTIVITY'",
   'ad-hit',
 ]);
-mustContain(path.join(app, 'electron', 'main.ts'), ["type: 'GLOBAL_IDLE_TIMEOUT'", 'openManagementConsole']);
+mustContain(path.join(app, 'electron', 'main.ts'), [
+  "type: 'GLOBAL_IDLE_TIMEOUT'",
+  'openManagementConsole',
+  '[display dump]',
+  'setFullScreen',
+  'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
+]);
+mustContain(path.join(app, 'scripts', 'start-production.js'), ['TRUNK_PRODUCTION_FORCE_NO_PREVIEW', 'delete process.env[key]']);
+mustContain(path.join(app, 'scripts', 'start-production-site.js'), ['TRUNK_SITE_AUTO_BOUNDS']);
 mustNotContain(path.join(src, 'overlays', 'CategoryModal.tsx'), ['category-modal__dots']);
 mustContain(path.join(src, 'overlays', 'CategoryModal.tsx'), ['stopScrollLeak']);
 mustContain(path.join(app, 'shared', 'idleConfig.ts'), ['PRODUCTION_SHELL_IDLE_TIMEOUT_SECONDS = 120']);
@@ -176,6 +185,20 @@ if (laptopPlusKiosks.windows.some((row) => row.matchedDisplayId === 1)) {
 if (laptopPlusKiosks.isDevFallback) fail('5 displays with 4 kiosk-sized panels must not tile on primary');
 if (!laptopPlusKiosks.managementDisplayIds.includes(1)) {
   fail('1280x720 display should be the management leftover');
+}
+
+const siteAuto = resolveWindowPlacement(layout, [
+  display(1, 0, 0, 1280, 720),
+  ...matchedDisplays,
+], { ...unpackaged, siteAutoBounds: true });
+if (!siteAuto.isSiteAutoBounds) fail('TRUNK_SITE_AUTO_BOUNDS placement must set isSiteAutoBounds');
+if (siteAuto.isPreviewMode) fail('site auto bounds must not use preview scale');
+if (siteAuto.windows.length !== 4) fail('site auto bounds must open 4 windows');
+if (siteAuto.windows.some((row) => row.matchedDisplayId === 1)) {
+  fail('site auto bounds must not place production on the 1280x720 management display');
+}
+if (siteAuto.windows.some((row) => row.bounds.height < 1800)) {
+  fail('site auto bounds must use kiosk display height, not a short preview window');
 }
 
 const fatalLayout = { ...layout, fatalOnBoundsMismatch: true };

@@ -26,6 +26,12 @@ import type { GlobalScene, ProductionAction } from '../shared/productionState';
 import { loadMonitorLayout, MonitorLayoutError } from './production/monitorLayout';
 import { resolveWindowPlacement } from './production/windowPlacement';
 import { parseProductionPreviewConfig } from './production/previewConfig';
+import {
+  dumpDisplay,
+  leftoverPreviewEnv,
+  parseProductionFullscreen,
+  parseSiteAutoBounds,
+} from './production/displayDump';
 import { resolveNoiseAsset } from './production/noiseAsset';
 import { ProductionStateCoordinator } from './production/productionStateCoordinator';
 import { loadVideoPlaylist } from './production/videoPlaylist';
@@ -272,7 +278,7 @@ function attachWindow(
   monitorId: number,
   bounds: { x: number; y: number; width: number; height: number },
   title: string,
-  options?: { resizable?: boolean; frame?: boolean },
+  options?: { resizable?: boolean; frame?: boolean; fullscreenable?: boolean },
 ): BrowserWindow {
   const win = new BrowserWindow({
     x: bounds.x,
@@ -281,6 +287,7 @@ function attachWindow(
     height: bounds.height,
     title,
     frame: options?.frame ?? true,
+    fullscreenable: options?.fullscreenable ?? true,
     autoHideMenuBar: true,
     backgroundColor: '#0b0b0c',
     resizable: options?.resizable ?? true,
@@ -311,6 +318,69 @@ function attachWindow(
   });
 
   return win;
+}
+
+function applySiteWindowChrome(
+  win: BrowserWindow,
+  monitorId: number,
+  bounds: { x: number; y: number; width: number; height: number },
+  displays: Electron.Display[],
+  matchedDisplayId: number | null,
+  fullscreen: boolean,
+): void {
+  const display = matchedDisplayId != null ? displays.find((row) => row.id === matchedDisplayId) : undefined;
+  logEvent({
+    level: 'info',
+    message: '[display dump] window create',
+    context: {
+      monitorId,
+      display: display ? dumpDisplay(display) : null,
+      matchedDisplayId,
+      initialBounds: bounds,
+      getBounds: win.getBounds(),
+      getContentBounds: win.getContentBounds(),
+    },
+  });
+  win.setMenuBarVisibility(false);
+  win.setBounds(bounds);
+  if (fullscreen) {
+    try {
+      win.setFullScreen(true);
+    } catch (err) {
+      logEvent({
+        level: 'warn',
+        message: 'setFullScreen failed',
+        context: { monitorId, reason: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+  const logFinal = (phase: string) => {
+    logEvent({
+      level: 'info',
+      message: '[display dump] window bounds',
+      context: {
+        phase,
+        monitorId,
+        matchedDisplayId,
+        targetBounds: bounds,
+        getBounds: win.getBounds(),
+        getContentBounds: win.getContentBounds(),
+        isFullScreen: win.isFullScreen(),
+      },
+    });
+  };
+  logFinal('after-setBounds');
+  win.once('ready-to-show', () => {
+    win.setBounds(bounds);
+    if (fullscreen && !win.isFullScreen()) {
+      try {
+        win.setFullScreen(true);
+      } catch {
+        /* first attempt already logged */
+      }
+    }
+    logFinal('ready-to-show');
+  });
 }
 
 function currentManagementStatus(): ManagementStatus | null {
@@ -440,9 +510,32 @@ function startProductionShell(): void {
     },
   });
 
-  const placement = resolveWindowPlacement(layout, screen.getAllDisplays(), {
+  const leftoverPreview = leftoverPreviewEnv(process.env);
+  const forceNoPreview =
+    app.isPackaged || (process.env.TRUNK_PRODUCTION_FORCE_NO_PREVIEW ?? '').trim() === '1';
+  const siteAutoBounds = parseSiteAutoBounds(process.env);
+  if (leftoverPreview.length > 0) {
+    logEvent({
+      level: 'warn',
+      message: 'preview env detected on production start',
+      context: { keys: leftoverPreview, forceNoPreview, siteAutoBounds },
+    });
+  }
+
+  const osDisplays = screen.getAllDisplays();
+  logEvent({
+    level: 'info',
+    message: '[display dump]',
+    context: { displays: osDisplays.map((display) => dumpDisplay(display)) },
+  });
+
+  const preview = forceNoPreview
+    ? { mode: 'off' as const, windows: 'multi' as const, requestedScale: null, frame: false }
+    : parseProductionPreviewConfig(process.env, { isPackaged: app.isPackaged });
+  const placement = resolveWindowPlacement(layout, osDisplays, {
     isPackaged: app.isPackaged,
-    preview: parseProductionPreviewConfig(process.env, { isPackaged: app.isPackaged }),
+    preview,
+    siteAutoBounds,
   });
 
   for (const warning of placement.warnings) {
@@ -467,6 +560,7 @@ function startProductionShell(): void {
       quitReason: placement.quitReason,
       isDevFallback: placement.isDevFallback,
       isPreviewMode: placement.isPreviewMode,
+      isSiteAutoBounds: placement.isSiteAutoBounds,
       previewMode: placement.previewMode,
       previewWindows: placement.previewWindows,
       previewFrame: placement.previewFrame,
@@ -577,6 +671,14 @@ function startProductionShell(): void {
   registerProductionIpc();
 
   const indexPath = resolveProductionIndex();
+  const useFullscreen = parseProductionFullscreen(process.env, {
+    allow: !placement.isPreviewMode && !placement.isDevFallback,
+  });
+  logEvent({
+    level: 'info',
+    message: 'production window chrome',
+    context: { useFullscreen, siteAutoBounds: placement.isSiteAutoBounds, isPreviewMode: placement.isPreviewMode },
+  });
   for (const row of placement.windows) {
     logEvent({
       level: 'info',
@@ -609,9 +711,13 @@ function startProductionShell(): void {
         ? {
             frame: placement.previewFrame,
             resizable: placement.previewWindows === 'single',
+            fullscreenable: false,
           }
-        : { frame: false, resizable: false },
+        : { frame: false, resizable: false, fullscreenable: true },
     );
+    if (!placement.isPreviewMode) {
+      applySiteWindowChrome(win, row.monitorId, row.bounds, osDisplays, row.matchedDisplayId, useFullscreen);
+    }
     win.loadFile(indexPath);
   }
 

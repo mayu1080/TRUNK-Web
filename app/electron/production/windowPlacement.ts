@@ -27,6 +27,7 @@ export interface MonitorPlacement {
 export interface WindowPlacementResult {
   isDevFallback: boolean;
   isPreviewMode: boolean;
+  isSiteAutoBounds: boolean;
   previewMode: ProductionPreviewMode;
   previewWindows: 'off' | ProductionPreviewWindows;
   previewFrame: boolean;
@@ -47,6 +48,7 @@ const PREVIEW_GAP = 12;
 function emptyPreview() {
   return {
     isPreviewMode: false,
+    isSiteAutoBounds: false,
     previewMode: 'off' as const,
     previewWindows: 'off' as const,
     previewFrame: false,
@@ -89,6 +91,88 @@ function displayRect(display: Display): Rect {
     y: display.bounds.y,
     width: display.bounds.width,
     height: display.bounds.height,
+  };
+}
+
+/** Use OS bounds. If Electron reports landscape DIP on a rotated portrait panel, swap. */
+export function productionWindowRect(display: Display, preferPortrait: boolean): Rect {
+  const rect = displayRect(display);
+  const rotation = Number((display as Display & { rotation?: number }).rotation ?? 0);
+  const rotated = rotation === 90 || rotation === 270;
+  if (preferPortrait && rect.width > rect.height && rotated) {
+    return { x: rect.x, y: rect.y, width: rect.height, height: rect.width };
+  }
+  return rect;
+}
+
+function pickLargestDisplays(displays: Display[], count: number): { picked: Display[]; leftover: Display[] } {
+  const ranked = [...displays].sort((a, b) => {
+    const areaDiff = b.bounds.width * b.bounds.height - a.bounds.width * a.bounds.height;
+    if (areaDiff !== 0) return areaDiff;
+    return a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y || a.id - b.id;
+  });
+  const picked = ranked.slice(0, count);
+  const pickedIds = new Set(picked.map((row) => row.id));
+  return {
+    picked: sortDisplays(picked),
+    leftover: displays.filter((row) => !pickedIds.has(row.id)),
+  };
+}
+
+function buildSiteAutoPlacement(
+  layout: MonitorLayoutFile,
+  displays: Display[],
+  fatal: boolean,
+  warnings: string[],
+): WindowPlacementResult {
+  const { picked, leftover } = pickLargestDisplays(displays, layout.monitors.length);
+  warnings.push(
+    `site auto bounds: placing ${picked.length} window(s) on largest OS display(s); JSON width/height not used for BrowserWindow`,
+  );
+  leftover.forEach((display) => {
+    warnings.push(
+      `management display excluded id=${display.id} ${display.bounds.width}x${display.bounds.height} @${display.bounds.x},${display.bounds.y}`,
+    );
+  });
+  const windows = layout.monitors.map((monitor, index) => {
+    const display = picked[index];
+    if (!display) {
+      return {
+        monitorId: monitor.monitorId,
+        bounds: { x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height },
+        config: monitor,
+        matchedDisplayId: null,
+        boundsMismatch: true,
+      };
+    }
+    const bounds = productionWindowRect(display, monitor.orientation === 'portrait');
+    return {
+      monitorId: monitor.monitorId,
+      bounds,
+      config: monitor,
+      matchedDisplayId: display.id,
+      boundsMismatch:
+        Math.abs(bounds.width - monitor.width) > layout.boundsTolerancePx ||
+        Math.abs(bounds.height - monitor.height) > layout.boundsTolerancePx,
+    };
+  });
+  return {
+    isDevFallback: false,
+    isPreviewMode: false,
+    isSiteAutoBounds: true,
+    previewMode: 'off',
+    previewWindows: 'off',
+    previewFrame: false,
+    previewScale: null,
+    previewLogicalWidth: null,
+    previewLogicalHeight: null,
+    boundsMismatch: windows.some((row) => row.boundsMismatch || row.matchedDisplayId == null),
+    fatalOnBoundsMismatch: fatal,
+    shouldQuit: false,
+    quitReason: null,
+    managementDisplayIds: leftover.map((d) => d.id),
+    windows,
+    warnings,
   };
 }
 
@@ -196,6 +280,7 @@ function buildPreviewPlacement(
   return {
     isDevFallback: false,
     isPreviewMode: true,
+    isSiteAutoBounds: false,
     previewMode: preview.mode,
     previewWindows: preview.windows,
     previewFrame: preview.frame === true,
@@ -219,13 +304,17 @@ function buildPreviewPlacement(
 export function resolveWindowPlacement(
   layout: MonitorLayoutFile,
   displays: Display[],
-  options: { isPackaged: boolean; preview?: ProductionPreviewConfig },
+  options: { isPackaged: boolean; preview?: ProductionPreviewConfig; siteAutoBounds?: boolean },
 ): WindowPlacementResult {
   const warnings: string[] = [];
   const tolerance = layout.boundsTolerancePx;
   const fatal = layout.fatalOnBoundsMismatch;
   const preview = options.preview ?? parseProductionPreviewConfig({}, { isPackaged: options.isPackaged });
   const sorted = sortDisplays(displays);
+
+  if (options.siteAutoBounds) {
+    return buildSiteAutoPlacement(layout, displays, fatal, warnings);
+  }
   const used = new Set<number>();
   const exactMatches: Array<{ monitor: MonitorLayoutEntry; display: Display | null }> = [];
 
@@ -299,7 +388,7 @@ export function resolveWindowPlacement(
         const display = row.display!;
         return {
           monitorId: row.monitor.monitorId,
-          bounds: displayRect(display),
+          bounds: productionWindowRect(display, row.monitor.orientation === 'portrait'),
           config: row.monitor,
           matchedDisplayId: display.id,
           boundsMismatch: false,
@@ -335,7 +424,7 @@ export function resolveWindowPlacement(
         const display = assigned[index]!;
         return {
           monitorId: monitor.monitorId,
-          bounds: displayRect(display),
+          bounds: productionWindowRect(display, monitor.orientation === 'portrait'),
           config: monitor,
           matchedDisplayId: display.id,
           boundsMismatch: true,
