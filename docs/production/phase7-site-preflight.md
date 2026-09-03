@@ -2,9 +2,9 @@
 
 **クローン・モジュール入れ・起動・よくあるエラー**は [`引継ぎ手順書/README.md`](../../引継ぎ手順書/README.md) を先に使う。このファイルは Windows 4 面配置と content 確認用。
 
-会場で `npm run start:production` する前の確認。仕様の正は [`production-runtime-spec.md`](./production-runtime-spec.md)。起動後は [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md)。
+会場で起動する前の確認。仕様の正は [`production-runtime-spec.md`](./production-runtime-spec.md)。起動後は [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md)。
 
-**合格の前提:** 本番確認は `npm run start:production`（または `launch-production.bat`）。管理画面は 5 枚目の production window ではない。
+**合格の前提:** 本番確認は `npm run start:production:site`（または `launch-production-site.bat`）を優先。次に `npm run start:production`（`launch-production.bat`）。どちらも frameless + `display.bounds` + `setFullScreen(true)` は同じ。管理画面は 5 枚目の production window ではない。
 
 ---
 
@@ -42,12 +42,12 @@ git clone --single-branch --depth 1 -b feature/production-phase7 https://github.
 - [ ] `npm run check:production-content` が通る（`check-production-content.bat`）
 - [ ] `npm run build` と `npm run build:production` が通る（`build-production.bat`）
 - [ ] `content/monitor-layout.json` が現場構成に合っている（下の手順）
-- [ ] `npm run start:production` で起動できる（`launch-production.bat`）
-- [ ] 窓が縦に短いときは `npm run start:production:site`（`launch-production-site.bat`）。preview 用の環境変数が残っていないこと
+- [ ] `npm run start:production:site` で起動できる（`launch-production-site.bat`）＝**現場の第一候補**
+- [ ] `npm run start:production`（`launch-production.bat`）でも 4 面フル画面になる。preview 用の環境変数が残っていないこと
 
-`start:production` は PowerShell に残った `TRUNK_PRODUCTION_PREVIEW_*` を消してから起動する。現場 4 面で preview scale を使わない。
+どちらも PowerShell に残った `TRUNK_PRODUCTION_PREVIEW_*` を消し、`TRUNK_PRODUCTION_FORCE_NO_PREVIEW=1` を立ててから起動する。現場 4 面で preview scale を使わない。
 
-任意: `npm run check:production-phase7`（4 面物理なしでも layout / overlay 契約を確認）。
+任意: `npm run check:production-phase7`（4 面物理なしでも layout / overlay 契約を確認）、`npm run check:production-phase71`（LIST independent world / fullscreen log / ads split 契約）。
 
 Node.js 22.12+、初回は `cd app` → `npm ci`、`npm --prefix renderer/production ci`。
 
@@ -69,7 +69,7 @@ Node.js 22.12+、初回は `cd app` → `npm ci`、`npm --prefix renderer/produc
 | `x` / `y` | 仮想デスクトップ上の原点 |
 | `width` / `height` | 現行想定 1080×1920 portrait |
 | 拡大縮小 / scaleFactor | Windows 設定。JSON キーは `scale`（現行 1）。Debug の `devicePixelRatio` |
-| `viewportOffsetX` / `viewportOffsetY` | 現行は各面の `x` / `y` と同じ |
+| `viewportOffsetX` / `viewportOffsetY` | 現行は各面の `x` / `y` と同じ。**LIST の見え方には影響しない**（Phase 7.1 で LIST は使わなくなった） |
 | 管理画面が含まれていないこと | JSON に 5 件目が無い。起動ログに `management display excluded` |
 | 4 画面の順番が実機配置と一致 | monitor 1 が意図した端の面か |
 
@@ -124,6 +124,58 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 
 ---
 
+## Phase 7.1 で変わったところ（現場検証の反映）
+
+### LIST: 1 monitor = 1 独立 world
+
+- production 既定は **`listWorldMode: independent`**。4 面で 1 世界を分割表示しない
+- `monitor-layout.json` は **BrowserWindow の配置だけ**に使う。LIST 内部の `viewportOffset` / camera offset は使わない
+- **seed が monitor ごとに違う**（1234 + monitorId × 10001 → 11235 / 21236 / 31237 / 41238）。画像の抽出順と配置座標が面ごとに変わる
+- 1 起動中は固定。AD_IDLE 復帰でも同じ配置に戻る
+- **world 倍率の初期値は 4**（world ≒ 可視範囲 × 4）
+- **上下左右すべて wrap**。端で止まらない / 跳ね返らない / 空白にならない
+- 旧 4 面 1 世界は `sharedWall` feature flag として残置（現場では使わない）
+
+### Fullscreen
+
+- 現場正コマンドは `start:production:site` 優先。`start:production` も同じ fullscreen 設定
+- window bounds は `workArea` ではなく **`display.bounds`**
+- frameless（`frame: false`）＋ `setFullScreen(true)`。kiosk は未使用（`isKiosk` は false）
+- 管理画面は production window の対象外（leftover display に管理窓）
+
+### Ads
+
+- 4320×1920 素材は **アプリ内で crop しない**。素材側で 4 分割して保存
+- `content/ads/monitor-1.mp4` 〜 `monitor-4.mp4`
+- 4 本そろえば `split`（monitorId 別再生）／1 本なら `single-shared`（4 面共通）／欠落は warning、0 本は placeholder
+- AD_IDLE の再生開始は 4 面同期
+
+---
+
+## Phase 7 現場再確認項目
+
+`start:production:site` で起動 → `D` で Debug を出して確認する。詳細手順は [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md)。
+
+| # | 確認 | 見る場所 |
+|---|------|----------|
+| 1 | `start:production:site` で 4 面すべてフル画面になる | 実機 / 起動ログ `isFullScreen: true` `isFrameless: true` `isKiosk: false` |
+| 2 | 管理画面に production window が出ない | 実機 / ログ `management display excluded` |
+| 3 | Debug の `listWorldMode` が `independent` | Debug パネル |
+| 4 | `seed` が 4 面で違う | Debug の `seed`（11235 / 21236 / 31237 / 41238） |
+| 5 | world が viewport の約 4 倍 | Debug の `world` と `mult 4x4`、`viewport` 行 |
+| 6 | 4 面の LIST が同じ並びではない | 実機を並べて目視 |
+| 7 | 右端のはみ出しが消えた | 実機。Debug の `css` / `drawingBuffer` / `camera.aspect` が window と一致 |
+| 8 | 上下左右どの端でも止まらず wrap する | 実機で 4 方向 pan。Debug の `panWrap: x= y=` が増える。`panHardClamp: false` |
+| 9 | 端で空白が出ない | 端を跨いで pan し続けてカードが途切れないこと |
+| 10 | pan / dolly / bubble が面ごとに独立 | 1 面だけ操作して他 3 面が動かないこと |
+| 11 | Image_ZOOM が壊れていない | カード tap → 拡大 → 閉じる。他面は LIST のまま |
+| 12 | CategoryDrawer が壊れていない | ハンバーガー → Explore / Category 一覧 |
+| 13 | Category modal が壊れていない | Drawer → カテゴリ → 白カード gallery、flick |
+| 14 | AD_IDLE で monitor 別 mp4 が再生される | Debug の `adsVideoMode: split` / `adsVideoFile: ads/monitor-N.mp4` / `adsVideoReadyState` |
+| 15 | 120 秒 Non-Touch が壊れていない | 4 面無操作で AD_IDLE へ戻る（判定は 4 面全体） |
+
+---
+
 ## トラブル時の切り分け
 
 ### 4 window が出ない
@@ -164,6 +216,27 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 3. Debug の `listImageCount` / `listSourceMode` / `textureFailedCount`
 4. ファイル名の非対応拡張子
 
+`content/images/list/` に画像があればそれが最優先。空のときだけ `content/images/` の再帰スキャン（`listSourceMode: recursive-images`）に落ちる。
+
+### 4 面の LIST が同じ並びに見える
+
+1. Debug の `listWorldMode` が `independent` か（`sharedWall` なら旧方式）
+2. Debug の `seed` が 4 面で違うか
+3. 同じなら `monitorId` が重複していないか（`monitor-layout.json`）
+
+### LIST の端で止まる / 空白が出る
+
+1. Debug の `panHardClamp` が `false` か（`true` なら sharedWall）
+2. 端を越えるとき `panWrap: x= y=` が増えるか
+3. `world` が `viewport` の 2 倍未満になっていないか（倍率下限は 2）
+
+### 広告が 4 面同じ映像になる
+
+1. `content/ads/monitor-1.mp4` 〜 `monitor-4.mp4` が 4 本あるか
+2. Debug の `adsVideoMode`（`single-shared` なら 1 本しか見えていない）
+3. `content/ads.json` の `tracks` が monitorId 1..4 を張っているか
+4. 起動ログの `ads missing N/4 files`
+
 ### text が出ない
 
 1. `content/text/TOKYO FOOD.txt`
@@ -183,5 +256,5 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 1. 本 preflight の Windows 側をチェック
 2. `check-production-content.bat`
 3. 必要なら `build-production.bat`
-4. `launch-production.bat`（=`npm run start:production`）
-5. [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md) を実施
+4. `launch-production-site.bat`（=`npm run start:production:site`）。ダメなら `launch-production.bat`
+5. [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md) と上の「Phase 7 現場再確認項目」を実施

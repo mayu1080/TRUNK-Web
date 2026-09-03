@@ -29,7 +29,7 @@ import { scanListImages } from './assetIndexBuilder';
 import { readImagePixelSize } from './imageDimensions';
 import { buildCategoryGallery } from './categoryGallery';
 import { loadSharedCopy } from './sharedCopy';
-import { loadVideoPlaylist } from '../production/videoPlaylist';
+import { loadVideoPlaylist, videoPlaylistMode } from '../production/videoPlaylist';
 
 export type { ContentImageValidationReport, ContentValidationIssue, ContentValidationLevel } from '../../shared/types';
 
@@ -395,6 +395,7 @@ export function validateProductionContentImages(
   let animationVideoFiles: string[] = [];
   let adsVideoMode: ContentImageValidationReport['adsVideoMode'] = 'missing';
   let adsVideoFiles: string[] = [];
+  let adsVideoDurationMs = 0;
   if (contentRootExists) {
     try {
       const playlist = loadVideoPlaylist(contentRoot, 'animation');
@@ -416,9 +417,8 @@ export function validateProductionContentImages(
     try {
       const playlist = loadVideoPlaylist(contentRoot, 'ads');
       adsVideoFiles = [...new Set(playlist.tracks.filter((track) => track.found).map((track) => track.relativePath))];
-      if (adsVideoFiles.length === 0) adsVideoMode = 'missing';
-      else if (adsVideoFiles.length === 1) adsVideoMode = 'single-shared';
-      else adsVideoMode = 'per-monitor';
+      adsVideoMode = videoPlaylistMode(playlist);
+      adsVideoDurationMs = playlist.durationMs;
       for (const warning of playlist.warnings) {
         pushIssue(issues, 'warning', 'ads-playlist', warning);
       }
@@ -516,6 +516,7 @@ export function validateProductionContentImages(
     adsDirExists,
     adsVideoMode,
     adsVideoFiles,
+    adsVideoDurationMs,
     fontsDirExists,
     fontFileCount,
   };

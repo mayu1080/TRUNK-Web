@@ -191,8 +191,9 @@ export interface ContentImageValidationSummary {
   animationVideoMode?: 'single-shared' | 'per-monitor' | 'missing';
   animationVideoFiles?: string[];
   adsDirExists?: boolean;
-  adsVideoMode?: 'single-shared' | 'per-monitor' | 'missing';
+  adsVideoMode?: 'split' | 'per-monitor' | 'single-shared' | 'missing';
   adsVideoFiles?: string[];
+  adsVideoDurationMs?: number;
   fontsDirExists?: boolean;
   fontFileCount?: number;
 }

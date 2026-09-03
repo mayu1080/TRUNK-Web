@@ -80,6 +80,26 @@ export interface ListDebugStats {
   firstImageUrl: string | null;
   wrapCount: number;
   panHardClamp: boolean;
+
+  /** Phase 7.1: monitor ごとの独立 LIST world */
+  listWorldMode: 'independent' | 'sharedWall';
+  worldSeed: number;
+  worldWidth: number;
+  worldHeight: number;
+  worldScaleMultiplierX: number;
+  worldScaleMultiplierY: number;
+  worldReferenceDistance: number;
+  viewportWorldWidth: number;
+  viewportWorldHeight: number;
+  cardSpawnSpanX: number;
+  cardSpawnSpanY: number;
+  targetCardCount: number;
+  panWrapCountX: number;
+  panWrapCountY: number;
+  windowInnerWidth: number;
+  windowInnerHeight: number;
+  cameraAspect: number;
+
   cameraXMin: number;
   cameraXMax: number;
   cameraYMin: number;

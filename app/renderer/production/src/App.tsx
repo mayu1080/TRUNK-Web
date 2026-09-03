@@ -88,6 +88,10 @@ export function App() {
   const [preloadReadyBeforeListEnter, setPreloadReadyBeforeListEnter] = useState<boolean | null>(null);
   const [brandFont, setBrandFont] = useState<BrandFontStatus | null>(null);
   const [sharedCopy, setSharedCopy] = useState<SharedCopyInfo | null>(null);
+  const [videoElementDebug, setVideoElementDebug] = useState<{ readyState: number; durationMs: number | null }>({
+    readyState: 0,
+    durationMs: null,
+  });
   const debugInitRef = useRef(false);
   const snapshotRef = useRef<ProductionSnapshot | null>(null);
   snapshotRef.current = snapshot;
@@ -322,6 +326,25 @@ export function App() {
     };
   }, [snapshot?.own.localOverlay, snapshot?.own.selectedCategoryId]);
 
+  // Debug 用。ads / animation の <video> readyState と尺を拾うだけで、再生制御はしない。
+  const videoElementMounted = snapshot != null;
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const sample = () => {
+      setVideoElementDebug({
+        readyState: el.readyState,
+        durationMs: Number.isFinite(el.duration) && el.duration > 0 ? Math.round(el.duration * 1000) : null,
+      });
+    };
+    const events = ['loadedmetadata', 'canplay', 'playing', 'pause', 'ended', 'emptied', 'error'];
+    for (const name of events) el.addEventListener(name, sample);
+    sample();
+    return () => {
+      for (const name of events) el.removeEventListener(name, sample);
+    };
+  }, [videoElementMounted]);
+
   useEffect(() => {
     const el = videoRef.current;
     const video = snapshot?.video;
@@ -409,6 +432,15 @@ export function App() {
   const missingVideo = Boolean(video.scene !== 'none' && video.track && !video.track.found);
   const adVideoLive =
     globalScene === 'AD_IDLE' && Boolean(video.track.found && video.track.url);
+  // ads は素材側で 4 分割した monitor-N.mp4 を再生する（app 内 crop なし）。
+  const adsVideoFiles = contentValidation?.adsVideoFiles ?? [];
+  const adsConventionPath = `ads/monitor-${monitorId}.mp4`;
+  const adsVideoFile =
+    globalScene === 'AD_IDLE' && video.track.relativePath
+      ? video.track.relativePath
+      : adsVideoFiles.find((file) => file === adsConventionPath) ?? adsVideoFiles[0] ?? null;
+  const adsVideoMode = contentValidation?.adsVideoMode ?? null;
+  const adsVideoDurationMs = contentValidation?.adsVideoDurationMs ?? null;
   const interactionEnabled = listActive && !own.interactionLocked;
   const drawerOpen = listActive && own.localOverlay === 'CATEGORY_DRAWER';
   const zoomOpen = listActive && own.localOverlay === 'IMAGE_ZOOM';
@@ -590,7 +622,9 @@ export function App() {
             `categoryFoodFolderCount: ${contentValidation?.foodFolderCount ?? '—'}  categoryFoodSlideCount: ${modalOpen && gallery ? gallery.images.length : contentValidation?.categoryFoodSlideCount ?? '—'}`,
             `coverImageCount: ${contentValidation?.coverImageCount ?? '—'}  foodFolders: ${(contentValidation?.foodFolderNames ?? []).join(',') || '—'}`,
             `textLoaded: ${contentValidation?.textLoaded ?? sharedCopy?.found ?? '—'}  textSource: ${contentValidation?.textSource ?? sharedCopy?.relativePath ?? '—'}`,
-            `adsVideoMode: ${contentValidation?.adsVideoMode ?? '—'}  adsVideoFiles: ${(contentValidation?.adsVideoFiles ?? []).join(', ') || (globalScene === 'AD_IDLE' && video.track.found ? video.track.relativePath : '—')}`,
+            `adsVideoMode: ${adsVideoMode ?? '—'}  adsVideoFile: ${adsVideoFile ?? '—'}  found: ${video.track.found}`,
+            `adsVideoFiles: ${adsVideoFiles.join(', ') || '—'}`,
+            `adsVideoDuration: ${adsVideoDurationMs ?? '—'}ms  media: ${videoElementDebug.durationMs ?? '—'}ms  adsVideoReadyState: ${videoElementDebug.readyState}`,
             `animationVideoMode: ${contentValidation?.animationVideoMode ?? '—'}  animationVideoFiles: ${(contentValidation?.animationVideoFiles ?? []).join(', ') || (video.track.found ? video.track.relativePath : 'missing')}`,
             `fontsDir: ${contentValidation?.fontsDirExists ?? '—'}  fontFileCount: ${contentValidation?.fontFileCount ?? '—'}`,
             `noiseOpacity: ${listConfig.noiseOpacity}  logo: ${logo?.fileName ?? 'missing'}`,
@@ -603,9 +637,13 @@ export function App() {
             `devicePixelRatio: ${window.devicePixelRatio}`,
             listStats
               ? [
+                  `listWorldMode: ${listStats.listWorldMode}  monitorId: ${listStats.monitorId}  seed: ${listStats.worldSeed}  targetCardCount: ${listStats.targetCardCount}`,
+                  `world: ${Math.round(listStats.worldWidth)}x${Math.round(listStats.worldHeight)}  mult ${listStats.worldScaleMultiplierX}x${listStats.worldScaleMultiplierY}  refDist ${listStats.worldReferenceDistance}`,
+                  `viewport: ${listStats.windowInnerWidth}x${listStats.windowInnerHeight}px  world単位 ${Math.round(listStats.viewportWorldWidth)}x${Math.round(listStats.viewportWorldHeight)}  spawnSpan ${Math.round(listStats.cardSpawnSpanX)}x${Math.round(listStats.cardSpawnSpanY)}`,
+                  `panWrap: x=${listStats.panWrapCountX} y=${listStats.panWrapCountY}  panHardClamp: ${listStats.panHardClamp}  depthWrap: ${listStats.wrapCount}`,
                   `canvasCount: ${listStats.canvasCount}  css ${listStats.canvasCssWidth}x${listStats.canvasCssHeight}`,
                   `drawingBuffer: ${listStats.drawingBufferWidth}x${listStats.drawingBufferHeight}`,
-                  `rendererPixelRatio: ${listStats.rendererPixelRatio}  dpr ${listStats.devicePixelRatio}`,
+                  `rendererPixelRatio: ${listStats.rendererPixelRatio}  dpr ${listStats.devicePixelRatio}  camera.aspect ${listStats.cameraAspect.toFixed(4)}`,
                   `fps: ${listStats.fps.toFixed(1)}  contextLost: ${listStats.contextLost}`,
                   `sourceImageCount: ${listStats.sourceImageCount}  displayed: ${listStats.displayedImageCount}`,
                   `realImageCount: ${listStats.realImageCount}  duplicated: ${listStats.duplicatedCount}`,
@@ -711,8 +749,12 @@ export function App() {
               coverImageCount: contentValidation?.coverImageCount ?? null,
               textLoaded: contentValidation?.textLoaded ?? sharedCopy?.found ?? null,
               textSource: contentValidation?.textSource ?? sharedCopy?.relativePath ?? null,
-              adsVideoMode: contentValidation?.adsVideoMode ?? null,
-              adsVideoFiles: contentValidation?.adsVideoFiles ?? null,
+              adsVideoMode,
+              adsVideoFile,
+              adsVideoFiles,
+              adsVideoDurationMs,
+              adsVideoMediaDurationMs: videoElementDebug.durationMs,
+              adsVideoReadyState: videoElementDebug.readyState,
               animationVideoMode: contentValidation?.animationVideoMode ?? null,
               animationVideoFiles: contentValidation?.animationVideoFiles ?? null,
               runtime: {
@@ -732,6 +774,18 @@ export function App() {
               list: listStats
                 ? {
                     fps: Number(listStats.fps.toFixed(1)),
+                    listWorldMode: listStats.listWorldMode,
+                    worldSeed: listStats.worldSeed,
+                    worldWidth: Math.round(listStats.worldWidth),
+                    worldHeight: Math.round(listStats.worldHeight),
+                    worldScaleMultiplierX: listStats.worldScaleMultiplierX,
+                    worldScaleMultiplierY: listStats.worldScaleMultiplierY,
+                    viewportWidth: listStats.windowInnerWidth,
+                    viewportHeight: listStats.windowInnerHeight,
+                    targetCardCount: listStats.targetCardCount,
+                    panWrapCountX: listStats.panWrapCountX,
+                    panWrapCountY: listStats.panWrapCountY,
+                    cameraAspect: Number(listStats.cameraAspect.toFixed(4)),
                     displayedImageCount: listStats.displayedImageCount,
                     densityPreset: listStats.densityPreset,
                     sceneSpreadX: listStats.sceneSpreadX,

@@ -17,8 +17,8 @@ production app（`TRUNK_DEMO=production`）の現場仕様。UI 再デザイン�
 
 | # | コマンド | 用途 | 現場 4 面の正か |
 |---|----------|------|-----------------|
-| 1 | `npm run start:production` | 本番想定。4 BrowserWindow。**AD_IDLE 開始**。preview env を消す。現場プレ実機検証のメイン | **正** |
-| 1b | `npm run start:production:site` | JSON の width/height を窓サイズに使わず、OS `display.bounds` に全面配置。縦が短いときの現場回避 | 窓が全面にならないとき |
+| 1 | `npm run start:production:site` | **現場の第一候補**。JSON の width/height を窓サイズに使わず、OS `display.bounds` に全面配置。Phase 7 現場で 4 面フル画面に成功した経路 | **正（優先）** |
+| 1b | `npm run start:production` | 本番想定。4 BrowserWindow。**AD_IDLE 開始**。preview env を消す。fullscreen 設定は `:site` と同じで維持 | **正** |
 | 2 | `npm run start:production:preview` | 1 画面で UI 確認。**PRODUCT_LIST 直行**（AD_IDLE / ANIMATION をスキップ）。デザイン微修正 | **使わない** |
 | 3 | `npm run start:production:preview:multi` | 4 window 挙動確認。AD_IDLE 開始。本番に近いが preview 扱い。開発 PC で 4 window の状態確認 | **代替にしない** |
 | 4 | `npm run check:production-content` | `content/` の list / food / cover / text / animation / Logo / fonts 等を確認 | 起動前 |
@@ -33,7 +33,35 @@ Windows 現場:
 | `check-production-content.bat` | `app` へ移動 → `npm run check:production-content` → `pause` |
 | `build-production.bat` | `app` へ移動 → `npm run build` → `npm run build:production` → `pause` |
 
-**本番確認は `npm run start:production`（または `launch-production.bat`）だけ。** preview を現場 4 面の合格判定に使わない。
+**本番確認は `npm run start:production:site`（または `launch-production-site.bat`）を優先し、次に `npm run start:production`。** preview を現場 4 面の合格判定に使わない。
+
+---
+
+## Fullscreen / frameless / bounds（現場成功状態）
+
+Phase 7 現場で 4 面フル画面に成功した設定。**この 4 点は壊さない。**
+
+| 項目 | 値 | どこ |
+|------|-----|------|
+| window bounds | OS の **`display.bounds`**（`workArea` ではない） | `productionWindowRect()` / `buildSiteAutoPlacement()` |
+| frame | **`frame: false`**（frameless） | `main.ts` の production 分岐 |
+| fullscreen | **`setFullScreen(true)`**。`ready-to-show` でも再適用 | `applySiteWindowChrome()` |
+| kiosk | **使っていない**（`isKiosk` は false のはず） | `setKiosk` を呼んでいない |
+
+- `workArea` を使うとタスクバー分だけ縦が短くなるので、現場では `display.bounds` を正とする
+- portrait 指定なのに Electron が landscape DIP を返し、かつ rotation 90/270 のときは幅高を swap する
+- `start:production` / `start:production:site` は `TRUNK_PRODUCTION_PREVIEW_*` を削除し、`TRUNK_PRODUCTION_FORCE_NO_PREVIEW=1` を立てる。**preview 縮小設定は production 起動に混ざらない**
+- fullscreen は preview / dev fallback では無効。`TRUNK_PRODUCTION_FULLSCREEN=0` で明示的に切れる（現場では触らない）
+- 管理画面は leftover display に別窓。**production window は 4 枚だけ**
+
+### 起動ログで見る値
+
+| ログ | 中身 |
+|------|------|
+| `[display dump]` | 全 OS display の `id` / `bounds` / `workArea` / `scaleFactor` / `rotation` |
+| `created window` | `frameOption` / `isFrameless` / `resizableOption` / `fullscreenableOption` |
+| `[display dump] window create` | `displayId` / `displayBounds` / `displayWorkArea` / `displayScaleFactor` / `boundsSource` / `initialBounds` / `getBounds` / `getContentBounds` / `isFullScreen` / `isKiosk` / `isFrameless` / `fullscreenRequested` |
+| `[display dump] window bounds`（`phase: after-setBounds` と `ready-to-show`） | 上記 + `finalBounds` |
 
 ---
 
@@ -112,6 +140,35 @@ Idle は PRODUCT_LIST のときだけ armed。AD_IDLE / ANIMATION ではオフ�
 
 ---
 
+## LIST world（Phase 7.1）
+
+production の LIST は **1 monitor = 1 独立 world**。4 面で 1 つの大きな世界を分割表示しない。
+
+| 項目 | 値 |
+|------|-----|
+| production 既定 | **`independent`**（`app/renderer/production/src/listConfig.ts` の `listWorldMode`） |
+| 旧 4 面 1 世界 | `LIST_WORLD_MODE` 相当の feature flag として `sharedWall` を残す（退避用。現場では使わない） |
+| monitor-layout の役割 | **BrowserWindow をどの実機モニターに置くか**だけ |
+| LIST 内部 | `viewportOffsetX/Y`・camera offset は **使わない**。原点はその面の world 中心 |
+| 基準 | その window の `innerWidth` / `innerHeight`（canvas 実サイズ）から world を作る |
+
+- **seed は monitor ごとに違う**: `cardExpandSeed(1234) + monitorId × worldSeedStride(10001)` → 11235 / 21236 / 31237 / 41238
+- 同じ seed で「画像の抽出順」と「カード配置座標」の両方を決めるので、4 面が同じ並びにならない
+- seed は `monitorId` だけで決まる。**1 起動中は固定**。AD_IDLE 復帰で LIST を作り直しても同じ配置に戻る
+- **world 倍率の初期値は 4**（`worldScaleMultiplierX` / `worldScaleMultiplierY`）。基準距離 2200 の可視範囲 × 4。縦フル HD なら world ≒ 4828 × 8584（可視範囲 ≒ 1207 × 2146）
+- 倍率の下限は 2（それ未満だと端の複製描画が破綻する）
+- world は LIST 生成時に一度だけ確定し、resize では作り直さない
+
+### 上下左右 wrap
+
+- 上下左右すべてループする。**端で止まらない / 跳ね返らない**
+- pan はカメラ座標を world サイズで畳む（modulo）。`camera` と `target` を同じ量ずらすので回り込みが飛ばない
+- 描画はカードを「カメラから見て最も近い複製位置」に置くので、world の端が見た目のつなぎ目にならない
+- 出現帯（可視範囲 × 2）の外に出たカードは画面外で帯へ戻す。**pan 後に空白ができない**
+- 奥行き（dolly）の wrap は従来どおり
+
+---
+
 ## monitor-layout
 
 必須ファイル: `content/monitor-layout.json`
@@ -121,7 +178,7 @@ Idle は PRODUCT_LIST のときだけ armed。AD_IDLE / ANIMATION ではオフ�
 | `monitorId` | 1..4。物理並びと一致させる |
 | `x` / `y` / `width` / `height` | そのモニターの OS bounds（論理ピクセル） |
 | `orientation` | 現場は `portrait`（現行 1080×1920） |
-| `viewportOffsetX` / `viewportOffsetY` | 仮想デスクトップ上のオフセット（現行は各面の `x` / `y` と同じ） |
+| `viewportOffsetX` / `viewportOffsetY` | 仮想デスクトップ上のオフセット（現行は各面の `x` / `y` と同じ）。**Phase 7.1 以降 LIST では使わない**（Debug 表示のみ） |
 | `scale` | レイアウト scale（現行 `1`）。Windows の拡大縮小率そのものではない |
 | `boundsTolerancePx` | OS bounds との許容差（現行 **8**） |
 | `fatalOnBoundsMismatch` | Phase 7 現場プレ検証は **`false`**（warning で起動） |
@@ -172,6 +229,31 @@ content/
   animation.json
 ```
 
+### 広告 mp4（4 分割方式）
+
+4320×1920 の横長素材は **アプリ内で crop しない**。素材側で 4 分割して保存する。
+
+```text
+content/ads/
+  monitor-1.mp4   # 1080x1920
+  monitor-2.mp4
+  monitor-3.mp4
+  monitor-4.mp4
+```
+
+`content/ads.json` の `tracks` が `monitorId` → ファイルの対応。既定は上の命名。
+
+| 置いたファイル | mode | 挙動 |
+|----------------|------|------|
+| 4 本（すべて別ファイル） | **`split`** | monitorId に対応する mp4 を再生 |
+| 2〜3 本 | `per-monitor` | 対応があるものはその面へ。残りは先頭ファイル。**warning** |
+| 1 本 | `single-shared` | 4 面共通で同じ mp4（既存 fallback） |
+| 0 本 | `missing` | placeholder。**warning**。touch で ANIMATION には進む |
+
+- 4 本の尺は同じ前提。AD_IDLE の再生開始は 4 面同期（共通 `sessionId` / `startedAtMs`）
+- 欠落時は起動ログに `ads missing N/4 files (...)` が出る
+- 起動ログ `loaded video playlists` に `adsVideoMode` / `adsVideoFiles`
+
 Phase 7 で確認すること:
 
 - AD_IDLE で `content/ads/` の mp4 が流れる（`ads/monitor-1.mp4` など。1 本だけなら 4 面共通）
@@ -214,6 +296,17 @@ topbar: `monitor`、`globalScene`、`idle: Xs / 120s`、`fps`、`BOUNDS MISMATCH
 | idle 残り | topbar `idle: …`。パネルは `idle.armed` / `timeout=` |
 | listImageCount | `listImageCount` |
 | listSourceMode | `listSourceMode` |
+| LIST world mode | `listWorldMode`（現場は `independent`） |
+| monitor 別 seed | `seed`（面ごとに違う値） |
+| world サイズ | `world: WxH  mult 4x4  refDist 2200` |
+| viewport | `viewport: 1080x1920px  world単位 …  spawnSpan …` |
+| wrap 回数 | `panWrap: x=… y=…`（`panHardClamp: false`） |
+| canvas 実サイズ | `canvasCount` / `css WxH` / `drawingBuffer` |
+| camera aspect | `camera.aspect`（`innerWidth / innerHeight` と一致すること） |
+| ads mode | `adsVideoMode`（`split` / `per-monitor` / `single-shared` / `missing`） |
+| ads この面のファイル | `adsVideoFile` |
+| ads 全ファイル | `adsVideoFiles` |
+| ads 尺 / 読み込み | `adsVideoDuration` / `adsVideoReadyState` |
 | categoryFoodFolderCount | `categoryFoodFolderCount` |
 | categoryFoodSlideCount | `categoryFoodSlideCount` |
 | coverImageCount | `coverImageCount` |

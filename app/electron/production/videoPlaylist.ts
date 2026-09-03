@@ -160,6 +160,21 @@ function resolveTracks(
   });
 }
 
+export type VideoPlaylistMode = 'split' | 'per-monitor' | 'single-shared' | 'missing';
+
+/**
+ * 4 monitor すべてが別ファイルなら `split`（4320x1920 を素材側で 4 分割した想定。app 内 crop はしない）。
+ * 1 本だけなら `single-shared`、0 本なら `missing`（placeholder）。
+ */
+export function videoPlaylistMode(playlist: VideoPlaylist): VideoPlaylistMode {
+  const found = playlist.tracks.filter((track) => track.found);
+  const unique = new Set(found.map((track) => track.relativePath));
+  if (unique.size === 0) return 'missing';
+  if (unique.size === 1) return 'single-shared';
+  if (found.length === MONITOR_IDS.length && unique.size === MONITOR_IDS.length) return 'split';
+  return 'per-monitor';
+}
+
 export function loadVideoPlaylist(
   contentRoot: string,
   kind: 'ads' | 'animation',

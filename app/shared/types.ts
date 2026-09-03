@@ -108,8 +108,10 @@ export interface ContentImageValidationReport {
   animationVideoMode: 'single-shared' | 'per-monitor' | 'missing';
   animationVideoFiles: string[];
   adsDirExists: boolean;
-  adsVideoMode: 'single-shared' | 'per-monitor' | 'missing';
+  /** `split` = monitor-1..4.mp4 が 4 本そろっている（素材側で 4 分割済み） */
+  adsVideoMode: 'split' | 'per-monitor' | 'single-shared' | 'missing';
   adsVideoFiles: string[];
+  adsVideoDurationMs: number;
   fontsDirExists: boolean;
   fontFileCount: number;
 }

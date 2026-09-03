@@ -78,6 +78,101 @@ export interface ScenePlacement {
   scaleMul: number;
 }
 
+export type ListWorldMode = 'independent' | 'sharedWall';
+
+/** Phase 7.1: monitor ごとの LIST 世界。単位は world unit（px ではない）。 */
+export interface ListWorld {
+  mode: ListWorldMode;
+  seed: number;
+  /** wrap 周期 */
+  width: number;
+  height: number;
+  multiplierX: number;
+  multiplierY: number;
+  /** 基準距離での可視範囲 */
+  viewportWidth: number;
+  viewportHeight: number;
+  /** カード出現帯 */
+  spawnSpanX: number;
+  spawnSpanY: number;
+  referenceDistance: number;
+}
+
+/** perspective camera が distance 先で見せる高さ。 */
+export function visibleWorldHeightAt(distance: number, fovDeg = CAMERA_CONFIG.fov): number {
+  return 2 * distance * Math.tan((fovDeg * Math.PI) / 360);
+}
+
+/** monitor ごとに抽出順・配置を変える seed。1 起動中は monitorId だけで決まる。 */
+export function monitorWorldSeed(monitorId: number, baseSeed: number, stride: number): number {
+  return baseSeed + monitorId * stride;
+}
+
+export function resolveListWorld(params: {
+  mode: ListWorldMode;
+  monitorId: number;
+  aspect: number;
+  baseSeed: number;
+  seedStride: number;
+  multiplierX: number;
+  multiplierY: number;
+  referenceDistance: number;
+  spawnSpanMultiplier: number;
+}): ListWorld {
+  const referenceDistance = params.referenceDistance > 0 ? params.referenceDistance : 2200;
+  const viewportHeight = visibleWorldHeightAt(referenceDistance);
+  const viewportWidth = viewportHeight * Math.max(params.aspect, 0.01);
+
+  if (params.mode === 'sharedWall') {
+    const spanX = SCENE_LAYOUT.xRange[1] - SCENE_LAYOUT.xRange[0];
+    const spanY = SCENE_LAYOUT.yRange[1] - SCENE_LAYOUT.yRange[0];
+    return {
+      mode: 'sharedWall',
+      seed: SCENE_LAYOUT.seed,
+      width: spanX,
+      height: spanY,
+      multiplierX: 1,
+      multiplierY: 1,
+      viewportWidth,
+      viewportHeight,
+      spawnSpanX: spanX,
+      spawnSpanY: spanY,
+      referenceDistance,
+    };
+  }
+
+  const multiplierX = Math.max(2, params.multiplierX);
+  const multiplierY = Math.max(2, params.multiplierY);
+  const spawnSpanMultiplier = clamp(params.spawnSpanMultiplier, 0.5, multiplierX);
+  return {
+    mode: 'independent',
+    seed: monitorWorldSeed(params.monitorId, params.baseSeed, params.seedStride),
+    width: viewportWidth * multiplierX,
+    height: viewportHeight * multiplierY,
+    multiplierX,
+    multiplierY,
+    viewportWidth,
+    viewportHeight,
+    spawnSpanX: viewportWidth * spawnSpanMultiplier,
+    spawnSpanY: viewportHeight * spawnSpanMultiplier,
+    referenceDistance,
+  };
+}
+
+/** 中心 0 の循環空間へ畳む。 */
+export function wrapCentered(value: number, span: number): number {
+  if (!(span > 0)) return value;
+  const half = span / 2;
+  let v = (value + half) % span;
+  if (v < 0) v += span;
+  return v - half;
+}
+
+/** from から to への torus 最短差分。端のつなぎ目を跨ぐ描画に使う。 */
+export function wrapDelta(from: number, to: number, span: number): number {
+  return wrapCentered(to - from, span);
+}
+
 function seededRandom(seed: number): () => number {
   let s = seed;
   return () => {
@@ -94,10 +189,17 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-export function buildScenePlacements(count: number, seed = SCENE_LAYOUT.seed): ScenePlacement[] {
+/** `spans` を渡すと中心 0 のその範囲へ配置する（independent world）。省略時は SCENE_LAYOUT の範囲。 */
+export function buildScenePlacements(
+  count: number,
+  seed = SCENE_LAYOUT.seed,
+  spans?: { spanX: number; spanY: number },
+): ScenePlacement[] {
   const rand = seededRandom(seed);
-  const [xMin, xMax] = SCENE_LAYOUT.xRange;
-  const [yMin, yMax] = SCENE_LAYOUT.yRange;
+  const xMin = spans ? -spans.spanX / 2 : SCENE_LAYOUT.xRange[0];
+  const xMax = spans ? spans.spanX / 2 : SCENE_LAYOUT.xRange[1];
+  const yMin = spans ? -spans.spanY / 2 : SCENE_LAYOUT.yRange[0];
+  const yMax = spans ? spans.spanY / 2 : SCENE_LAYOUT.yRange[1];
   const [zMin, zMax] = SCENE_LAYOUT.zRange;
   const spanX = xMax - xMin;
   const spanY = yMax - yMin;

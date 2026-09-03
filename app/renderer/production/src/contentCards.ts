@@ -55,8 +55,8 @@ function urlScheme(url: string | null): string {
   }
 }
 
-function expandToTarget(sources: ExploreSourceImage[], target: number): DemoListCard[] {
-  const shuffled = seededShuffle(sources, CARD_EXPAND_SEED);
+function expandToTarget(sources: ExploreSourceImage[], target: number, seed: number): DemoListCard[] {
+  const shuffled = seededShuffle(sources, seed);
   const picked = shuffled.length > target ? shuffled.slice(0, target) : shuffled;
   const n = picked.length;
   const cards: DemoListCard[] = [];
@@ -98,12 +98,17 @@ function fallbackResult(error: string): ContentCardLoadResult {
 }
 
 /**
- * 1. getAssetIndex().listImages
- * 2. if empty, getExploreImages() (Main recursive scan of content/images)
+ * 1. getAssetIndex().listImages（content/images/list を最優先）
+ * 2. listImages が空のときだけ getExploreImages() の recursive scan を採用
  * 3. getContentFileUrl for each relativePath
  * 4. expand/cap to targetCardCount
+ *
+ * Main の collectExploreImages は list/ があれば enrich 済みの listImages を
+ * `source: 'listImages'` で返すため、その場合は enrich 版を使う（並び順は同じ）。
+ *
+ * `seed` は monitor ごとに違う値を渡す（Phase 7.1: 4 面が同じ並びにならないようにする）。
  */
-export async function loadContentCards(): Promise<ContentCardLoadResult> {
+export async function loadContentCards(seed: number = CARD_EXPAND_SEED): Promise<ContentCardLoadResult> {
   const api = window.trunkApi;
   if (!api?.getAssetIndex || !api.getContentFileUrl) {
     return fallbackResult('trunkApi getAssetIndex / getContentFileUrl is not available');
@@ -118,12 +123,15 @@ export async function loadContentCards(): Promise<ContentCardLoadResult> {
       categoryId?: string;
       title?: string;
     }> = index.listImages ?? [];
+    const listImageCount = entries.length;
     let exploreSource: ContentCardLoadResult['exploreSource'] =
-      entries.length > 0 ? 'listImages' : 'none';
+      listImageCount > 0 ? 'listImages' : 'none';
 
     if (api.getExploreImages) {
       const explore = await api.getExploreImages();
-      if (explore.images.length > 0) {
+      // recursive-images は listImages が空のときだけ採用する（list/ を上書きしない）。
+      const acceptSource = explore.source === 'listImages' || listImageCount === 0;
+      if (explore.images.length > 0 && acceptSource) {
         entries = explore.images;
         exploreSource = explore.source;
       }
@@ -149,12 +157,14 @@ export async function loadContentCards(): Promise<ContentCardLoadResult> {
     }
 
     const target = listConfig.targetCardCount;
-    const cards = expandToTarget(sources, target);
+    const cards = expandToTarget(sources, target, seed);
     const duplicatedCount = cards.filter((c) => c.duplicated).length;
     const uniqueSources = new Set(cards.map((c) => c.sourceImageId)).size;
     const firstImageUrl = sources[0]?.imageUrl ?? null;
     console.info('[production] content cards', {
       exploreSource,
+      seed,
+      listImageCount,
       realImageCount: sources.length,
       displayedImageCount: cards.length,
       duplicatedCount,

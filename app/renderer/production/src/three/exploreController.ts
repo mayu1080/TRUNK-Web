@@ -22,7 +22,18 @@ import type {
 import { attachBubbleRevealShader, createRevealUniforms, type RevealUniforms } from './bubbleRevealShader';
 import { FpsCounter } from './fpsCounter';
 import { createPlaceholderCanvas } from './placeholderCards';
-import { buildScenePlacements, CAMERA_CONFIG, CARD_MOTION, CARD_SCALE_RANGE, DOLLY_CRUISE, SCENE_LAYOUT } from './sceneLayout';
+import {
+  buildScenePlacements,
+  CAMERA_CONFIG,
+  CARD_MOTION,
+  CARD_SCALE_RANGE,
+  DOLLY_CRUISE,
+  resolveListWorld,
+  SCENE_LAYOUT,
+  wrapCentered,
+  wrapDelta,
+  type ListWorld,
+} from './sceneLayout';
 
 const CARD_LONG_SIDE = 280;
 const TEXTURE_LOAD_CONCURRENCY = 4;
@@ -104,6 +115,21 @@ function planeSizeForAspect(aspect: number, scaleMul: number): { width: number; 
   const width = aspect >= 1 ? longSide : longSide * aspect;
   const height = aspect >= 1 ? longSide / aspect : longSide;
   return { width, height };
+}
+
+/** Phase 7.1: LIST world は monitor の実表示 aspect から作る。monitor-layout の offset は使わない。 */
+function buildListWorld(monitorId: number, aspect: number): ListWorld {
+  return resolveListWorld({
+    mode: listConfig.listWorldMode === 'sharedWall' ? 'sharedWall' : 'independent',
+    monitorId,
+    aspect,
+    baseSeed: listConfig.cardExpandSeed,
+    seedStride: listConfig.worldSeedStride,
+    multiplierX: listConfig.worldScaleMultiplierX,
+    multiplierY: listConfig.worldScaleMultiplierY,
+    referenceDistance: listConfig.worldReferenceDistance,
+    spawnSpanMultiplier: listConfig.cardSpawnSpanMultiplier,
+  });
 }
 
 function capTextureImage(texture: THREE.Texture, maxEdge: number): void {
@@ -194,6 +220,9 @@ export class ExploreController {
   private contentRoot: string | null = null;
   private firstImageUrl: string | null = null;
   private wrapCount = 0;
+  private panWrapCountX = 0;
+  private panWrapCountY = 0;
+  private world: ListWorld;
   private cruiseVelocityZ = 0;
   private shiftHeld = false;
   private targetFov = CAMERA_CONFIG.fov;
@@ -219,16 +248,28 @@ export class ExploreController {
   constructor(
     private callbacks: ExploreControllerCallbacks,
     private layout: ExploreViewLayout,
-  ) {}
+  ) {
+    this.world = buildListWorld(layout.monitorId, layout.width / Math.max(layout.height, 1));
+  }
 
   private applyLayoutOrigin(): void {
     const scale = this.layout.scale > 0 ? this.layout.scale : 1;
-    this.panMinX = CAMERA_CONFIG.minX + this.layout.viewportOffsetX;
-    this.panMaxX = CAMERA_CONFIG.maxX + this.layout.viewportOffsetX;
-    this.panMinY = CAMERA_CONFIG.minY + this.layout.viewportOffsetY;
-    this.panMaxY = CAMERA_CONFIG.maxY + this.layout.viewportOffsetY;
-    this.targetCameraX = CAMERA_CONFIG.initialX + this.layout.viewportOffsetX;
-    this.targetCameraY = CAMERA_CONFIG.initialY + this.layout.viewportOffsetY;
+    if (this.world.mode === 'independent') {
+      // Phase 7.1: 4面1世界の viewportOffset は使わない。原点はこの monitor の world 中心。
+      this.panMinX = -this.world.width / 2;
+      this.panMaxX = this.world.width / 2;
+      this.panMinY = -this.world.height / 2;
+      this.panMaxY = this.world.height / 2;
+      this.targetCameraX = CAMERA_CONFIG.initialX;
+      this.targetCameraY = CAMERA_CONFIG.initialY;
+    } else {
+      this.panMinX = CAMERA_CONFIG.minX + this.layout.viewportOffsetX;
+      this.panMaxX = CAMERA_CONFIG.maxX + this.layout.viewportOffsetX;
+      this.panMinY = CAMERA_CONFIG.minY + this.layout.viewportOffsetY;
+      this.panMaxY = CAMERA_CONFIG.maxY + this.layout.viewportOffsetY;
+      this.targetCameraX = CAMERA_CONFIG.initialX + this.layout.viewportOffsetX;
+      this.targetCameraY = CAMERA_CONFIG.initialY + this.layout.viewportOffsetY;
+    }
     this.targetCameraZ = CAMERA_CONFIG.initialZ / scale;
     this.cameraX = this.targetCameraX;
     this.cameraY = this.targetCameraY;
@@ -256,9 +297,11 @@ export class ExploreController {
 
   private async initInner(host: HTMLElement): Promise<void> {
     this.host = host;
-    this.applyLayoutOrigin();
     const width = host.clientWidth || window.innerWidth || 1;
     const height = host.clientHeight || window.innerHeight || 1;
+    // world はこの window の実表示比から作り、resize では作り直さない（カード配置を起動中固定にするため）。
+    this.world = buildListWorld(this.layout.monitorId, width / height);
+    this.applyLayoutOrigin();
     const pixelRatio = Math.min(window.devicePixelRatio || 1, runtimeConfig.rendererPixelRatioMax);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -287,8 +330,29 @@ export class ExploreController {
     this.applyRuntimeVisual();
     this.unsubRuntime = onRuntimeConfigChange(() => this.applyRuntimeConfig());
 
+    void window.trunkApi?.logEvent?.({
+      level: 'info',
+      message: 'production list world',
+      context: {
+        phase: 7.1,
+        monitorId: this.layout.monitorId,
+        listWorldMode: this.world.mode,
+        seed: this.world.seed,
+        worldWidth: Math.round(this.world.width),
+        worldHeight: Math.round(this.world.height),
+        viewportWorldWidth: Math.round(this.world.viewportWidth),
+        viewportWorldHeight: Math.round(this.world.viewportHeight),
+        canvasCssWidth: width,
+        canvasCssHeight: height,
+        windowInnerWidth: window.innerWidth,
+        windowInnerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        targetCardCount: listConfig.targetCardCount,
+      },
+    });
+
     this.contentLoadStatus = 'loading';
-    const loaded = await loadContentCards();
+    const loaded = await loadContentCards(this.world.seed);
     if (this.destroyed) return;
 
     this.realImageCount = loaded.realImageCount;
@@ -347,7 +411,13 @@ export class ExploreController {
   }
 
   private buildCards(metas: DemoListCard[]): void {
-    const placements = buildScenePlacements(metas.length);
+    const placements = buildScenePlacements(
+      metas.length,
+      this.world.seed,
+      this.world.mode === 'independent'
+        ? { spanX: this.world.spawnSpanX, spanY: this.world.spawnSpanY }
+        : undefined,
+    );
     for (let i = 0; i < metas.length; i++) {
       const meta = metas[i]!;
       const place = placements[i]!;
@@ -561,8 +631,7 @@ export class ExploreController {
   private updateCardMotion(deltaTime: number): void {
     const cam = CARD_MOTION;
     const speed = runtimeConfig.listMotionSpeed;
-    const [xMin, xMax] = SCENE_LAYOUT.xRange;
-    const [yMin, yMax] = SCENE_LAYOUT.yRange;
+    const wrapWorld = this.world.mode === 'independent';
 
     for (const card of this.cards) {
       card.sceneZ += cam.sceneDriftSpeed * card.driftMul * speed * deltaTime;
@@ -570,25 +639,34 @@ export class ExploreController {
 
       if (dist < cam.nearFadeEndDist) {
         card.sceneZ = this.cameraZ - cam.farAlphaSoftDist + Math.random() * 400;
-        card.sceneX = lerp(xMin, xMax, Math.random());
-        card.sceneY = lerp(yMin, yMax, Math.random());
+        this.respawnCardXY(card);
         card.appearT = 0;
         dist = this.cameraZ - card.sceneZ;
       } else if (dist > cam.farFadeEndDist) {
         card.sceneZ = this.cameraZ - lerp(cam.nearFadeStartDist + 40, cam.farAlphaStartDist * 0.55, Math.random());
-        card.sceneX = lerp(xMin, xMax, Math.random());
-        card.sceneY = lerp(yMin, yMax, Math.random());
+        this.respawnCardXY(card);
         card.appearT = 0;
         dist = this.cameraZ - card.sceneZ;
+      } else if (wrapWorld && this.isCardOutOfSpawnBand(card)) {
+        // pan で置いていったカードを画面外で出現帯へ戻す。端付近でも空白にならない。
+        this.respawnCardXY(card);
+        card.appearT = 0;
       }
 
       const t = this.clockTime * card.idleSpeed * speed;
       const yAmp = lerp(cam.idleYAmpMin, cam.idleYAmpMax, card.idleIntensity);
       const xAmp = lerp(cam.idleXAmpMin, cam.idleXAmpMax, card.idleIntensity);
       const rotAmp = ((cam.idleRotAmpDeg * Math.PI) / 180) * card.idleIntensity;
+      // torus: カメラから見て最も近い複製位置に描く。世界の端が見た目のつなぎ目にならない。
+      const renderX = wrapWorld
+        ? this.cameraX + wrapDelta(this.cameraX, card.sceneX, this.world.width)
+        : card.sceneX;
+      const renderY = wrapWorld
+        ? this.cameraY + wrapDelta(this.cameraY, card.sceneY, this.world.height)
+        : card.sceneY;
       card.mesh.position.set(
-        card.sceneX + Math.sin(t * 0.71 + card.idlePhaseX) * xAmp,
-        card.sceneY + Math.sin(t + card.idlePhaseY) * yAmp,
+        renderX + Math.sin(t * 0.71 + card.idlePhaseX) * xAmp,
+        renderY + Math.sin(t + card.idlePhaseY) * yAmp,
         card.sceneZ,
       );
       card.mesh.rotation.set(0, 0, Math.sin(t * 0.61 + card.idlePhaseRot) * rotAmp);
@@ -728,6 +806,50 @@ export class ExploreController {
     this.pinchCentroidY = 0;
     this.pinchOriginCentroidY = 0;
     this.twoFingerVerticalArmed = false;
+  }
+
+  /** independent: 出現帯はカメラ基準で world 内に畳む。sharedWall: 旧 SCENE_LAYOUT 範囲。 */
+  private respawnCardXY(card: ListCard): void {
+    if (this.world.mode !== 'independent') {
+      card.sceneX = lerp(SCENE_LAYOUT.xRange[0], SCENE_LAYOUT.xRange[1], Math.random());
+      card.sceneY = lerp(SCENE_LAYOUT.yRange[0], SCENE_LAYOUT.yRange[1], Math.random());
+      return;
+    }
+    card.sceneX = wrapCentered(
+      this.cameraX + (Math.random() - 0.5) * this.world.spawnSpanX,
+      this.world.width,
+    );
+    card.sceneY = wrapCentered(
+      this.cameraY + (Math.random() - 0.5) * this.world.spawnSpanY,
+      this.world.height,
+    );
+  }
+
+  /** 出現帯の外（=画面外）かどうか。torus 差分で見るので端をまたいでも正しい。 */
+  private isCardOutOfSpawnBand(card: ListCard): boolean {
+    const dx = Math.abs(wrapDelta(this.cameraX, card.sceneX, this.world.width));
+    const dy = Math.abs(wrapDelta(this.cameraY, card.sceneY, this.world.height));
+    return dx > this.world.spawnSpanX * 0.75 || dy > this.world.spawnSpanY * 0.75;
+  }
+
+  /**
+   * 上下左右 wrap。camera と target を同じ量ずらすので lerp が世界を横断しない。
+   * 端で止めず、逆側の世界へ連続して回り込む。
+   */
+  private wrapPanLoop(): void {
+    const { width, height } = this.world;
+    if (width > 0 && Math.abs(this.targetCameraX) > width / 2) {
+      const shift = wrapCentered(this.targetCameraX, width) - this.targetCameraX;
+      this.targetCameraX += shift;
+      this.cameraX += shift;
+      this.panWrapCountX += 1;
+    }
+    if (height > 0 && Math.abs(this.targetCameraY) > height / 2) {
+      const shift = wrapCentered(this.targetCameraY, height) - this.targetCameraY;
+      this.targetCameraY += shift;
+      this.cameraY += shift;
+      this.panWrapCountY += 1;
+    }
   }
 
   /** Low-risk dolly wrap: shift camera + cards so wheel does not hard-stop at min/max Z. */
@@ -1005,16 +1127,16 @@ export class ExploreController {
     }
 
     if (p.dragging && this.pointers.size === 1 && !this.pinchSession) {
-      this.targetCameraX = clamp(
-        this.targetCameraX - dx * CAMERA_CONFIG.dragSensitivity,
-        this.panMinX,
-        this.panMaxX,
-      );
-      this.targetCameraY = clamp(
-        this.targetCameraY + dy * CAMERA_CONFIG.dragSensitivity,
-        this.panMinY,
-        this.panMaxY,
-      );
+      const nextX = this.targetCameraX - dx * CAMERA_CONFIG.dragSensitivity;
+      const nextY = this.targetCameraY + dy * CAMERA_CONFIG.dragSensitivity;
+      if (this.world.mode === 'independent') {
+        this.targetCameraX = nextX;
+        this.targetCameraY = nextY;
+        this.wrapPanLoop();
+      } else {
+        this.targetCameraX = clamp(nextX, this.panMinX, this.panMaxX);
+        this.targetCameraY = clamp(nextY, this.panMinY, this.panMaxY);
+      }
     }
   };
 
@@ -1288,7 +1410,24 @@ export class ExploreController {
       contentRoot: this.contentRoot,
       firstImageUrl: this.firstImageUrl,
       wrapCount: this.wrapCount,
-      panHardClamp: true,
+      panHardClamp: this.world.mode !== 'independent',
+      listWorldMode: this.world.mode,
+      worldSeed: this.world.seed,
+      worldWidth: this.world.width,
+      worldHeight: this.world.height,
+      worldScaleMultiplierX: this.world.multiplierX,
+      worldScaleMultiplierY: this.world.multiplierY,
+      worldReferenceDistance: this.world.referenceDistance,
+      viewportWorldWidth: this.world.viewportWidth,
+      viewportWorldHeight: this.world.viewportHeight,
+      cardSpawnSpanX: this.world.spawnSpanX,
+      cardSpawnSpanY: this.world.spawnSpanY,
+      targetCardCount: listConfig.targetCardCount,
+      panWrapCountX: this.panWrapCountX,
+      panWrapCountY: this.panWrapCountY,
+      windowInnerWidth: window.innerWidth,
+      windowInnerHeight: window.innerHeight,
+      cameraAspect: this.camera?.aspect ?? 0,
       cameraXMin: this.panMinX,
       cameraXMax: this.panMaxX,
       cameraYMin: this.panMinY,
@@ -1341,8 +1480,8 @@ export class ExploreController {
       cardScaleMax: CARD_SCALE_RANGE.max,
       cameraFov: this.camera?.fov ?? CAMERA_CONFIG.fov,
       initialCameraZ: CAMERA_CONFIG.initialZ,
-      sceneSpreadX: SCENE_LAYOUT.xRange[1] - SCENE_LAYOUT.xRange[0],
-      sceneSpreadY: SCENE_LAYOUT.yRange[1] - SCENE_LAYOUT.yRange[0],
+      sceneSpreadX: Math.round(this.world.spawnSpanX),
+      sceneSpreadY: Math.round(this.world.spawnSpanY),
       sceneSpreadZ: SCENE_LAYOUT.zRange[1] - SCENE_LAYOUT.zRange[0],
       bubbleEnabled: bubble.enabled,
       bubbleVisible: bubble.visible,

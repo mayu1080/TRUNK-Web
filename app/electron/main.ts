@@ -34,7 +34,7 @@ import {
 } from './production/displayDump';
 import { resolveNoiseAsset } from './production/noiseAsset';
 import { ProductionStateCoordinator } from './production/productionStateCoordinator';
-import { loadVideoPlaylist } from './production/videoPlaylist';
+import { loadVideoPlaylist, videoPlaylistMode } from './production/videoPlaylist';
 import type { VideoPlaylist } from './production/videoPlaylist';
 import { VideoSyncController } from './production/videoSyncController';
 import { TouchActivityManager } from './production/touchActivityManager';
@@ -274,11 +274,17 @@ function resolveProductionIndex(): string {
   return indexPath;
 }
 
+export interface WindowChromeOptions {
+  resizable?: boolean;
+  frame?: boolean;
+  fullscreenable?: boolean;
+}
+
 function attachWindow(
   monitorId: number,
   bounds: { x: number; y: number; width: number; height: number },
   title: string,
-  options?: { resizable?: boolean; frame?: boolean; fullscreenable?: boolean },
+  options?: WindowChromeOptions,
 ): BrowserWindow {
   const win = new BrowserWindow({
     x: bounds.x,
@@ -309,6 +315,11 @@ function attachWindow(
       webContentsId: win.webContents.id,
       bounds,
       title,
+      // frame: false は BrowserWindow から読めないので、渡した設定値をそのまま残す。
+      frameOption: options?.frame ?? true,
+      isFrameless: (options?.frame ?? true) === false,
+      resizableOption: options?.resizable ?? true,
+      fullscreenableOption: options?.fullscreenable ?? true,
     },
   });
 
@@ -327,8 +338,10 @@ function applySiteWindowChrome(
   displays: Electron.Display[],
   matchedDisplayId: number | null,
   fullscreen: boolean,
+  chrome: WindowChromeOptions,
 ): void {
   const display = matchedDisplayId != null ? displays.find((row) => row.id === matchedDisplayId) : undefined;
+  const isFrameless = (chrome.frame ?? true) === false;
   logEvent({
     level: 'info',
     message: '[display dump] window create',
@@ -336,9 +349,22 @@ function applySiteWindowChrome(
       monitorId,
       display: display ? dumpDisplay(display) : null,
       matchedDisplayId,
+      displayId: display?.id ?? null,
+      displayBounds: display ? { ...display.bounds } : null,
+      displayWorkArea: display ? { ...display.workArea } : null,
+      displayScaleFactor: display?.scaleFactor ?? null,
+      // 現場成功状態: workArea ではなく display.bounds を window bounds に使う。
+      boundsSource: 'display.bounds',
       initialBounds: bounds,
       getBounds: win.getBounds(),
       getContentBounds: win.getContentBounds(),
+      isFullScreen: win.isFullScreen(),
+      isKiosk: win.isKiosk(),
+      isFrameless,
+      frameOption: chrome.frame ?? true,
+      resizableOption: chrome.resizable ?? true,
+      fullscreenableOption: chrome.fullscreenable ?? true,
+      fullscreenRequested: fullscreen,
     },
   });
   win.setMenuBarVisibility(false);
@@ -362,10 +388,21 @@ function applySiteWindowChrome(
         phase,
         monitorId,
         matchedDisplayId,
+        displayId: display?.id ?? null,
+        displayBounds: display ? { ...display.bounds } : null,
+        displayWorkArea: display ? { ...display.workArea } : null,
+        displayScaleFactor: display?.scaleFactor ?? null,
+        boundsSource: 'display.bounds',
+        initialBounds: bounds,
         targetBounds: bounds,
+        finalBounds: win.getBounds(),
         getBounds: win.getBounds(),
         getContentBounds: win.getContentBounds(),
         isFullScreen: win.isFullScreen(),
+        isKiosk: win.isKiosk(),
+        isFrameless,
+        frameOption: chrome.frame ?? true,
+        fullscreenRequested: fullscreen,
       },
     });
   };
@@ -590,6 +627,9 @@ function startProductionShell(): void {
       adsContentId: ads.contentId,
       adsDurationMs: ads.durationMs,
       adsFound: ads.tracks.filter((t) => t.found).length,
+      // split = ads/monitor-1..4.mp4 が 4 本。app 内 crop はしない。
+      adsVideoMode: videoPlaylistMode(ads),
+      adsVideoFiles: [...new Set(ads.tracks.filter((t) => t.found).map((t) => t.relativePath))],
       animationContentId: animation.contentId,
       animationDurationMs: animation.durationMs,
       animationFound: animation.tracks.filter((t) => t.found).length,
@@ -703,20 +743,29 @@ function startProductionShell(): void {
         : placement.previewWindows === 'multi'
           ? 'preview multi'
           : 'production';
+    const chromeOptions: WindowChromeOptions = placement.isPreviewMode
+      ? {
+          frame: placement.previewFrame,
+          resizable: placement.previewWindows === 'single',
+          fullscreenable: false,
+        }
+      : { frame: false, resizable: false, fullscreenable: true };
     const win = attachWindow(
       row.monitorId,
       row.bounds,
       `TRUNK ${placement.isPreviewMode ? previewTitle : 'production'} (monitor ${row.monitorId})`,
-      placement.isPreviewMode
-        ? {
-            frame: placement.previewFrame,
-            resizable: placement.previewWindows === 'single',
-            fullscreenable: false,
-          }
-        : { frame: false, resizable: false, fullscreenable: true },
+      chromeOptions,
     );
     if (!placement.isPreviewMode) {
-      applySiteWindowChrome(win, row.monitorId, row.bounds, osDisplays, row.matchedDisplayId, useFullscreen);
+      applySiteWindowChrome(
+        win,
+        row.monitorId,
+        row.bounds,
+        osDisplays,
+        row.matchedDisplayId,
+        useFullscreen,
+        chromeOptions,
+      );
     }
     win.loadFile(indexPath);
   }

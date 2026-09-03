@@ -24,6 +24,21 @@ export const listConfig = {
   densityPreset: 'dense-96',
   cardExpandSeed: 1234,
 
+  /**
+   * Phase 7.1: `independent` は 1 monitor = 1 world（上下左右 wrap）。
+   * `sharedWall` は旧 4面1世界（viewportOffset + pan clamp）の退避用。production 既定は independent。
+   */
+  listWorldMode: 'independent' as 'independent' | 'sharedWall',
+  /** world = そのモニターの可視範囲 × 倍率。2 未満にすると wrap 時の最近接複製が破綻する */
+  worldScaleMultiplierX: 4,
+  worldScaleMultiplierY: 4,
+  /** world / 可視範囲を出す奥行き基準距離。CARD_MOTION.farAlphaStartDist と同値 */
+  worldReferenceDistance: 2200,
+  /** カード出現帯 = 可視範囲 × 倍率。画面あたりのカード密度を決める */
+  cardSpawnSpanMultiplier: 2,
+  /** monitorId ごとの seed 間隔。1 起動中は固定 */
+  worldSeedStride: 10001,
+
   rendererPixelRatioMax: 2,
 
   /** Phase 5.5: prefer content/noise/*.mp4. DOM grain is fallback. */

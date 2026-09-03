@@ -21,6 +21,15 @@ function mustContain(filePath, needles) {
   }
 }
 
+function mustNotContain(filePath, needles) {
+  const text = fs.readFileSync(filePath, 'utf8');
+  for (const needle of needles) {
+    if (text.includes(needle)) {
+      fail(`${path.relative(path.join(__dirname, '..'), filePath)} should not contain ${JSON.stringify(needle)}`);
+    }
+  }
+}
+
 function mustNotContainTree(dir, needle) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
@@ -69,7 +78,16 @@ mustContain(path.join(src, 'overlays', 'ImageZoomOverlay.tsx'), [
   'image-zoom-overlay__logo',
   'image-zoom-overlay__close-corner',
 ]);
-mustContain(path.join(src, 'imageCopy.ts'), ['image-details.json', 'SAMPLE_IMAGE_DESCRIPTION', 'formatDrawerLabel']);
+// Phase 5.16 以降、IMAGE_ZOOM / Category modal の text は content/text/TOKYO FOOD.txt（sharedCopy）が正。
+// per-image の image-details.json は採用していないので、そちらを要求しない。
+mustContain(path.join(src, 'imageCopy.ts'), [
+  'TOKYO FOOD.txt',
+  'sharedTitle',
+  'sharedDescription',
+  'SAMPLE_IMAGE_DESCRIPTION',
+  'formatDrawerLabel',
+]);
+mustNotContain(path.join(src, 'imageCopy.ts'), ['image-details.json']);
 mustContain(path.join(src, 'ui', 'CategoryDrawer.tsx'), ['formatDrawerLabel', 'Explore', 'Category']);
 mustContain(path.join(src, 'styles.css'), [
   'review-mode .topbar',

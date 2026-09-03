@@ -61,10 +61,12 @@ mustContain(path.join(src, 'categoryModalMotion.ts'), [
   'DRAWER_MOTION.durationMs',
   'scale: 0.985',
 ]);
+// Phase 5.16 以降、modal の title / description は sharedCopy（content/text/TOKYO FOOD.txt）優先で、
+// 無いときだけ categories.json の値にフォールバックする。
 mustContain(path.join(src, 'App.tsx'), [
   'open={modalOpen}',
-  'categoryTitle={modalCategory?.title}',
-  'categoryDescription={modalCategory?.description}',
+  'categoryTitle={sharedCopy?.found ? sharedCopy.title : modalCategory?.title}',
+  'categoryDescription={sharedCopy?.found ? sharedCopy.description : modalCategory?.description}',
   'CATEGORY_MODAL_MOTION',
 ]);
 mustNotContain(path.join(src, 'App.tsx'), ['key={own.selectedCategoryId ?? \'modal\'}']);
