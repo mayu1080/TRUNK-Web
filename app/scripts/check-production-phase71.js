@@ -106,6 +106,11 @@ mustContain(path.join(app, 'electron', 'production', 'videoPlaylist.ts'), [
   "'split'",
   "'single-shared'",
   'fillMissingTracks',
+  'Incomplete 2–3 files: keep missing tracks found:false (placeholder + warning). Do not fill with the first file.',
+]);
+mustContain(path.join(root, 'docs', 'production', 'production-runtime-spec.md'), [
+  '欠落 monitor は placeholder',
+  '先頭ファイルで埋めない',
 ]);
 mustContain(path.join(app, 'electron', 'content', 'contentImageValidation.ts'), ['videoPlaylistMode(playlist)']);
 mustContain(path.join(app, 'shared', 'types.ts'), ['adsVideoDurationMs']);

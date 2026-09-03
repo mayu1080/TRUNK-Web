@@ -147,7 +147,7 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 
 - 4320×1920 素材は **アプリ内で crop しない**。素材側で 4 分割して保存
 - `content/ads/monitor-1.mp4` 〜 `monitor-4.mp4`
-- 4 本そろえば `split`（monitorId 別再生）／1 本なら `single-shared`（4 面共通）／欠落は warning、0 本は placeholder
+- 4 本そろえば `split`（monitorId 別再生）／1 本なら `single-shared`（4 面共通）／2〜3 本なら `per-monitor`（ある面だけ再生、欠落面は placeholder、warning）／0 本は `missing`（placeholder、warning）
 - AD_IDLE の再生開始は 4 面同期
 
 ---
@@ -230,12 +230,12 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 2. 端を越えるとき `panWrap: x= y=` が増えるか
 3. `world` が `viewport` の 2 倍未満になっていないか（倍率下限は 2）
 
-### 広告が 4 面同じ映像になる
+### 広告が 4 面同じ映像になる / 一部だけ流れる
 
 1. `content/ads/monitor-1.mp4` 〜 `monitor-4.mp4` が 4 本あるか
-2. Debug の `adsVideoMode`（`single-shared` なら 1 本しか見えていない）
+2. Debug の `adsVideoMode`（`single-shared` なら 1 本、`per-monitor` なら 2〜3 本の不完全セット）
 3. `content/ads.json` の `tracks` が monitorId 1..4 を張っているか
-4. 起動ログの `ads missing N/4 files`
+4. 起動ログの `ads missing N/4 files`（欠落面は先頭ファイルで埋めず placeholder）
 
 ### text が出ない
 

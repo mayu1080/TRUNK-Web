@@ -246,7 +246,7 @@ content/ads/
 | 置いたファイル | mode | 挙動 |
 |----------------|------|------|
 | 4 本（すべて別ファイル） | **`split`** | monitorId に対応する mp4 を再生 |
-| 2〜3 本 | `per-monitor` | 対応があるものはその面へ。残りは先頭ファイル。**warning** |
+| 2〜3 本 | `per-monitor` | 存在する monitor はその mp4。欠落 monitor は placeholder。**warning**（不完全素材。先頭ファイルで埋めない） |
 | 1 本 | `single-shared` | 4 面共通で同じ mp4（既存 fallback） |
 | 0 本 | `missing` | placeholder。**warning**。touch で ANIMATION には進む |
 

@@ -86,7 +86,11 @@ function makeTrack(contentRoot: string, monitorId: number, file: string): VideoT
   return { monitorId, relativePath: file, url, found };
 }
 
-/** One file → all monitors. monitor-N.mp4 → that monitor. Else sorted files by monitor index. */
+/**
+ * 1 unique file → all monitors (single-shared).
+ * Incomplete 2–3 files: keep missing tracks found:false (placeholder + warning). Do not fill with the first file.
+ * 0 files: leave tracks as-is (missing).
+ */
 function fillMissingTracks(
   contentRoot: string,
   kind: 'ads' | 'animation',
@@ -111,12 +115,15 @@ function fillMissingTracks(
     if (match) byMonitor.set(Number(match[1]), file);
   }
   if (byMonitor.size > 0) {
-    return MONITOR_IDS.map((id) => {
-      const file = byMonitor.get(id) ?? files[0]!;
-      return makeTrack(contentRoot, id, file);
+    return MONITOR_IDS.map((id, index) => {
+      const file = byMonitor.get(id);
+      return file ? makeTrack(contentRoot, id, file) : tracks[index]!;
     });
   }
-  return MONITOR_IDS.map((id, index) => makeTrack(contentRoot, id, files[index] ?? files[files.length - 1]!));
+  return MONITOR_IDS.map((id, index) => {
+    const file = files[index];
+    return file ? makeTrack(contentRoot, id, file) : tracks[index]!;
+  });
 }
 
 function conventionTracks(kind: 'ads' | 'animation'): Array<{ monitorId: number; file: string }> {
@@ -163,8 +170,9 @@ function resolveTracks(
 export type VideoPlaylistMode = 'split' | 'per-monitor' | 'single-shared' | 'missing';
 
 /**
- * 4 monitor すべてが別ファイルなら `split`（4320x1920 を素材側で 4 分割した想定。app 内 crop はしない）。
- * 1 本だけなら `single-shared`、0 本なら `missing`（placeholder）。
+ * 4 本すべて別ファイルなら `split`（4320x1920 を素材側で 4 分割した想定。app 内 crop はしない）。
+ * 1 本だけなら `single-shared`。2〜3 本なら `per-monitor`（欠落面は found:false / placeholder）。
+ * 0 本なら `missing`。
  */
 export function videoPlaylistMode(playlist: VideoPlaylist): VideoPlaylistMode {
   const found = playlist.tracks.filter((track) => track.found);
