@@ -59,6 +59,9 @@ const summary = {
   animationDirExists: report.animationDirExists,
   animationVideoMode: report.animationVideoMode,
   animationVideoFiles: report.animationVideoFiles,
+  adsDirExists: report.adsDirExists,
+  adsVideoMode: report.adsVideoMode,
+  adsVideoFiles: report.adsVideoFiles,
   fontsDirExists: report.fontsDirExists,
   fontFileCount: report.fontFileCount,
 };

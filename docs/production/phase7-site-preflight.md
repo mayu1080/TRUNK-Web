@@ -1,5 +1,7 @@
 # Phase 7 現場プレ実機 — 起動前 preflight
 
+**クローン・モジュール入れ・起動・よくあるエラー**は [`引継ぎ手順書/README.md`](../../引継ぎ手順書/README.md) を先に使う。このファイルは Windows 4 面配置と content 確認用。
+
 会場で `npm run start:production` する前の確認。仕様の正は [`production-runtime-spec.md`](./production-runtime-spec.md)。起動後は [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md)。
 
 **合格の前提:** 本番確認は `npm run start:production`（または `launch-production.bat`）。管理画面は 5 枚目の production window ではない。

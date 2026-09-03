@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>TRUNK 管理画面</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #101114;
+      color: #f3f1ea;
+      padding: 20px 22px 28px;
+    }
+    h1 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+    .sub { opacity: 0.7; font-size: 12px; margin-bottom: 16px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .badge {
+      font-size: 12px;
+      padding: 5px 9px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: #1b1d22;
+    }
+    .badge.warn { border-color: #e2b340; color: #f5d67b; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 18px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    th { opacity: 0.55; font-weight: 500; }
+    .role-production { color: #8fd4a8; }
+    .role-management { color: #8ec5ff; }
+    .role-unused { color: #c9c4b8; }
+    .ok { color: #8fd4a8; }
+    .miss { color: #f0a0a0; }
+    pre { white-space: pre-wrap; font-size: 11px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <h1>TRUNK 管理画面</h1>
+  <p class="sub">認識しているディスプレイです。本番 content window は 4 枚だけ。この窓は 5 枚目の本番画面ではありません。</p>
+  <div class="row" id="summary"></div>
+  <h2 style="font-size:15px;margin:0 0 6px">OS ディスプレイ</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>役割</th>
+        <th>production monitor</th>
+        <th>bounds</th>
+        <th>scale</th>
+      </tr>
+    </thead>
+    <tbody id="displays"></tbody>
+  </table>
+  <h2 style="font-size:15px;margin:0 0 6px">本番 4 window</h2>
+  <table>
+    <thead>
+      <tr><th>monitorId</th><th>displayId</th><th>window bounds</th><th>mismatch</th></tr>
+    </thead>
+    <tbody id="windows"></tbody>
+  </table>
+  <h2 style="font-size:15px;margin:0 0 6px">ads / animation</h2>
+  <div id="media"></div>
+  <h2 style="font-size:15px;margin:0 0 6px">warnings</h2>
+  <pre id="warnings"></pre>
+  <script>
+    function roleLabel(role) {
+      if (role === 'production') return '本番 4 面';
+      if (role === 'management') return '管理画面';
+      return '未割当';
+    }
+    function render(status) {
+      if (!status) {
+        document.getElementById('summary').textContent = '状態を取得できません';
+        return;
+      }
+      const flags = [];
+      flags.push('<span class="badge">globalScene: ' + status.globalScene + '</span>');
+      flags.push('<span class="badge">OS displays: ' + status.displays.length + '</span>');
+      flags.push('<span class="badge">production windows: ' + status.productionWindows.length + '</span>');
+      if (status.isDevFallback) flags.push('<span class="badge warn">DEV FALLBACK</span>');
+      if (status.isPreviewMode) flags.push('<span class="badge warn">PREVIEW</span>');
+      if (status.boundsMismatch) flags.push('<span class="badge warn">BOUNDS MISMATCH</span>');
+      document.getElementById('summary').innerHTML = flags.join('');
+
+      document.getElementById('displays').innerHTML = status.displays.map(function (d) {
+        return '<tr>' +
+          '<td>' + d.id + (d.internal ? ' (internal)' : '') + '</td>' +
+          '<td class="role-' + d.role + '">' + roleLabel(d.role) + '</td>' +
+          '<td>' + (d.productionMonitorIds.length ? d.productionMonitorIds.join(', ') : '—') + '</td>' +
+          '<td>' + d.width + '×' + d.height + ' @' + d.x + ',' + d.y + '</td>' +
+          '<td>' + d.scaleFactor + '</td>' +
+          '</tr>';
+      }).join('');
+
+      document.getElementById('windows').innerHTML = status.productionWindows.map(function (w) {
+        return '<tr>' +
+          '<td>' + w.monitorId + '</td>' +
+          '<td>' + (w.displayId == null ? '—' : w.displayId) + '</td>' +
+          '<td>' + w.width + '×' + w.height + ' @' + w.x + ',' + w.y + '</td>' +
+          '<td>' + (w.boundsMismatch ? 'mismatch' : 'ok') + '</td>' +
+          '</tr>';
+      }).join('');
+
+      function mediaBlock(title, pack) {
+        const rows = pack.tracks.map(function (t) {
+          return t.monitorId + ': ' + t.relativePath + ' ' + (t.found ? 'found' : 'MISSING');
+        }).join('<br>');
+        return '<p><strong>' + title + '</strong> ' + pack.foundCount + '/4　' + pack.contentId + '</p><p>' + rows + '</p>';
+      }
+      document.getElementById('media').innerHTML =
+        mediaBlock('ads (content/ads)', status.ads) +
+        mediaBlock('animation (content/animation)', status.animation);
+      document.getElementById('warnings').textContent =
+        (status.warnings && status.warnings.length) ? status.warnings.join('\n') : '(none)';
+    }
+
+    const api = window.managementApi;
+    if (!api) {
+      render(null);
+    } else {
+      api.getStatus().then(render).catch(function () { render(null); });
+      api.onChanged(render);
+    }
+  </script>
+</body>
+</html>

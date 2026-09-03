@@ -325,11 +325,13 @@ export function validateProductionContentImages(
   const coverAbs = contentRootExists ? resolveContentPath(contentRoot, 'images/cover') : '';
   const textAbs = contentRootExists ? path.join(contentRoot, 'text') : '';
   const animationAbs = contentRootExists ? path.join(contentRoot, 'animation') : '';
+  const adsAbs = contentRootExists ? path.join(contentRoot, 'ads') : '';
   const fontsAbs = contentRootExists ? path.join(contentRoot, 'fonts') : '';
   const foodDirExists = Boolean(foodAbs && existsDir(foodAbs));
   const coverDirExists = Boolean(coverAbs && existsDir(coverAbs));
   const textDirExists = Boolean(textAbs && existsDir(textAbs));
   const animationDirExists = Boolean(animationAbs && existsDir(animationAbs));
+  const adsDirExists = Boolean(adsAbs && existsDir(adsAbs));
   const fontsDirExists = Boolean(fontsAbs && existsDir(fontsAbs));
 
   const loadedCategories = categories && categories.length > 0 ? categories : loadCategoriesFromDisk(contentRoot);
@@ -391,6 +393,8 @@ export function validateProductionContentImages(
 
   let animationVideoMode: ContentImageValidationReport['animationVideoMode'] = 'missing';
   let animationVideoFiles: string[] = [];
+  let adsVideoMode: ContentImageValidationReport['adsVideoMode'] = 'missing';
+  let adsVideoFiles: string[] = [];
   if (contentRootExists) {
     try {
       const playlist = loadVideoPlaylist(contentRoot, 'animation');
@@ -409,6 +413,26 @@ export function validateProductionContentImages(
         err instanceof Error ? err.message : String(err),
       );
     }
+    try {
+      const playlist = loadVideoPlaylist(contentRoot, 'ads');
+      adsVideoFiles = [...new Set(playlist.tracks.filter((track) => track.found).map((track) => track.relativePath))];
+      if (adsVideoFiles.length === 0) adsVideoMode = 'missing';
+      else if (adsVideoFiles.length === 1) adsVideoMode = 'single-shared';
+      else adsVideoMode = 'per-monitor';
+      for (const warning of playlist.warnings) {
+        pushIssue(issues, 'warning', 'ads-playlist', warning);
+      }
+    } catch (err) {
+      pushIssue(issues, 'warning', 'ads-playlist', err instanceof Error ? err.message : String(err));
+    }
+  }
+  if (adsVideoMode === 'missing') {
+    pushIssue(
+      issues,
+      'warning',
+      'ads-missing',
+      'no ads mp4 in content/ads/ — AD_IDLE shows placeholder; tap still starts ANIMATION',
+    );
   }
   if (animationVideoMode === 'missing') {
     pushIssue(
@@ -489,6 +513,9 @@ export function validateProductionContentImages(
     animationDirExists,
     animationVideoMode,
     animationVideoFiles,
+    adsDirExists,
+    adsVideoMode,
+    adsVideoFiles,
     fontsDirExists,
     fontFileCount,
   };

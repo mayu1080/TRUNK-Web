@@ -188,6 +188,11 @@ export function App() {
         return;
       }
       if (current.globalScene === 'AD_IDLE') {
+        void window.trunkApi.logEvent({
+          level: 'info',
+          message: 'AD_IDLE touch → ANIMATION',
+          context: { monitorId: current.monitorId },
+        });
         void dispatch({ type: 'AD_IDLE_TOUCH' });
         return;
       }
@@ -402,6 +407,8 @@ export function App() {
   const listActive = globalScene === 'PRODUCT_LIST';
   const listMounted = (globalScene === 'ANIMATION' || globalScene === 'PRODUCT_LIST') && Boolean(exploreLayout);
   const missingVideo = Boolean(video.scene !== 'none' && video.track && !video.track.found);
+  const adVideoLive =
+    globalScene === 'AD_IDLE' && Boolean(video.track.found && video.track.url);
   const interactionEnabled = listActive && !own.interactionLocked;
   const drawerOpen = listActive && own.localOverlay === 'CATEGORY_DRAWER';
   const zoomOpen = listActive && own.localOverlay === 'IMAGE_ZOOM';
@@ -535,13 +542,15 @@ export function App() {
             </main>
           ) : null}
         </div>
+      ) : adVideoLive ? (
+        <button type="button" className="ad-hit" aria-label="広告をタッチして ANIMATION を開始" />
       ) : (
         <main className="scene-stage">
           <p className="kicker">{scene.kicker}</p>
           <h1 className="scene-title">{scene.title}</h1>
           <p className="scene-copy">
             {missingVideo
-              ? `${scene.copy} Missing ${video.track.relativePath} — placeholder until files are placed.`
+              ? `${scene.copy} Missing ${video.track.relativePath} — 現地の content/ads/ に mp4 を置いてください。`
               : scene.copy}
           </p>
           <p className="monitor-line">monitorId: {monitorId}</p>
@@ -581,6 +590,7 @@ export function App() {
             `categoryFoodFolderCount: ${contentValidation?.foodFolderCount ?? '—'}  categoryFoodSlideCount: ${modalOpen && gallery ? gallery.images.length : contentValidation?.categoryFoodSlideCount ?? '—'}`,
             `coverImageCount: ${contentValidation?.coverImageCount ?? '—'}  foodFolders: ${(contentValidation?.foodFolderNames ?? []).join(',') || '—'}`,
             `textLoaded: ${contentValidation?.textLoaded ?? sharedCopy?.found ?? '—'}  textSource: ${contentValidation?.textSource ?? sharedCopy?.relativePath ?? '—'}`,
+            `adsVideoMode: ${contentValidation?.adsVideoMode ?? '—'}  adsVideoFiles: ${(contentValidation?.adsVideoFiles ?? []).join(', ') || (globalScene === 'AD_IDLE' && video.track.found ? video.track.relativePath : '—')}`,
             `animationVideoMode: ${contentValidation?.animationVideoMode ?? '—'}  animationVideoFiles: ${(contentValidation?.animationVideoFiles ?? []).join(', ') || (video.track.found ? video.track.relativePath : 'missing')}`,
             `fontsDir: ${contentValidation?.fontsDirExists ?? '—'}  fontFileCount: ${contentValidation?.fontFileCount ?? '—'}`,
             `noiseOpacity: ${listConfig.noiseOpacity}  logo: ${logo?.fileName ?? 'missing'}`,
@@ -701,6 +711,8 @@ export function App() {
               coverImageCount: contentValidation?.coverImageCount ?? null,
               textLoaded: contentValidation?.textLoaded ?? sharedCopy?.found ?? null,
               textSource: contentValidation?.textSource ?? sharedCopy?.relativePath ?? null,
+              adsVideoMode: contentValidation?.adsVideoMode ?? null,
+              adsVideoFiles: contentValidation?.adsVideoFiles ?? null,
               animationVideoMode: contentValidation?.animationVideoMode ?? null,
               animationVideoFiles: contentValidation?.animationVideoFiles ?? null,
               runtime: {

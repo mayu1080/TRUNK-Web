@@ -29,8 +29,14 @@ import { parseProductionPreviewConfig } from './production/previewConfig';
 import { resolveNoiseAsset } from './production/noiseAsset';
 import { ProductionStateCoordinator } from './production/productionStateCoordinator';
 import { loadVideoPlaylist } from './production/videoPlaylist';
+import type { VideoPlaylist } from './production/videoPlaylist';
 import { VideoSyncController } from './production/videoSyncController';
 import { TouchActivityManager } from './production/touchActivityManager';
+import {
+  buildManagementStatus,
+  pickManagementWindowBounds,
+  type ManagementStatus,
+} from './production/managementStatus';
 
 registerContentSchemePrivileges();
 
@@ -54,6 +60,11 @@ let productionCoordinator: ProductionStateCoordinator | null = null;
 let productionVideo: VideoSyncController | null = null;
 let productionIdle: TouchActivityManager | null = null;
 let lastProductionScene: GlobalScene = 'AD_IDLE';
+let managementWindow: BrowserWindow | null = null;
+let productionPlacement: ReturnType<typeof resolveWindowPlacement> | null = null;
+let productionAds: VideoPlaylist | null = null;
+let productionAnimation: VideoPlaylist | null = null;
+let productionLayoutPath = '';
 
 function logEvent(event: LogEvent): void {
   const prefix = `[${event.level}]`;
@@ -107,6 +118,7 @@ function broadcastProduction(reason: string): void {
     });
   }
   ProductionStateCoordinator.broadcastAll(monitorWindows, productionCoordinator);
+  broadcastManagementStatus();
 }
 
 function registerSharedIpc(): void {
@@ -205,6 +217,13 @@ function registerProductionIpc(): void {
   ipcMain.handle('trunk:dispatchProduction', (event, action: ProductionAction) => {
     const monitorId = resolveMonitorId(event);
     try {
+      if (action.type === 'AD_IDLE_TOUCH') {
+        logEvent({
+          level: 'info',
+          message: 'AD_IDLE_TOUCH',
+          context: { monitorId, scene: productionCoordinator!.getGlobalScene() },
+        });
+      }
       const snapshot = productionCoordinator!.dispatch(monitorId, action);
       return snapshot;
     } catch (err) {
@@ -217,6 +236,8 @@ function registerProductionIpc(): void {
       throw err;
     }
   });
+
+  ipcMain.handle('trunk:getManagementStatus', () => currentManagementStatus());
 }
 
 function resolveDemo0820Index(): string {
@@ -290,6 +311,69 @@ function attachWindow(
   });
 
   return win;
+}
+
+function currentManagementStatus(): ManagementStatus | null {
+  if (!productionCoordinator || !productionPlacement || !productionAds || !productionAnimation) return null;
+  return buildManagementStatus({
+    displays: screen.getAllDisplays(),
+    placement: productionPlacement,
+    globalScene: productionCoordinator.getGlobalScene(),
+    contentRoot: getContentService().contentRoot,
+    layoutPath: productionLayoutPath,
+    adsContentId: productionAds.contentId,
+    adsTracks: productionAds.tracks,
+    animationContentId: productionAnimation.contentId,
+    animationTracks: productionAnimation.tracks,
+  });
+}
+
+function broadcastManagementStatus(): void {
+  if (!managementWindow || managementWindow.isDestroyed()) return;
+  const status = currentManagementStatus();
+  if (!status) return;
+  managementWindow.webContents.send('trunk:management-status-changed', status);
+}
+
+function openManagementConsole(): void {
+  if (!productionPlacement) return;
+  const bounds = pickManagementWindowBounds(screen.getAllDisplays(), productionPlacement.managementDisplayIds);
+  if (!bounds) {
+    logEvent({
+      level: 'info',
+      message: 'management console skipped (no leftover display)',
+      context: { managementDisplayIds: productionPlacement.managementDisplayIds },
+    });
+    return;
+  }
+  const htmlPath = path.join(app.getAppPath(), 'electron', 'production', 'managementConsole.html');
+  const win = new BrowserWindow({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    title: 'TRUNK 管理画面',
+    frame: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#101114',
+    resizable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'managementPreload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  managementWindow = win;
+  win.on('closed', () => {
+    if (managementWindow === win) managementWindow = null;
+  });
+  win.loadFile(htmlPath);
+  logEvent({
+    level: 'info',
+    message: 'created management console',
+    context: { bounds, displayIds: productionPlacement.managementDisplayIds },
+  });
 }
 
 function createLegacyMonitorWindow(monitorId: number): void {
@@ -397,6 +481,10 @@ function startProductionShell(): void {
 
   const ads = loadVideoPlaylist(service.contentRoot, 'ads');
   const animation = loadVideoPlaylist(service.contentRoot, 'animation');
+  productionAds = ads;
+  productionAnimation = animation;
+  productionPlacement = placement;
+  productionLayoutPath = layoutPath;
   for (const warning of [...ads.warnings, ...animation.warnings]) {
     logEvent({ level: 'warn', message: 'video playlist warning', context: { warning } });
     placement.warnings.push(warning);
@@ -526,6 +614,8 @@ function startProductionShell(): void {
     );
     win.loadFile(indexPath);
   }
+
+  openManagementConsole();
 
   logEvent({
     level: 'info',
