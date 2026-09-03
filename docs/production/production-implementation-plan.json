@@ -1,0 +1,238 @@
+{
+  "doc": "production-implementation-plan",
+  "version": "0.1",
+  "date": "2026-08-29",
+  "phase0Status": "design-docs-only",
+  "doNotImplementInPhase0": [
+    "production-shell",
+    "four-browser-windows",
+    "in-app-video",
+    "four-screen-list",
+    "category-modal",
+    "image-zoom-ux-fix",
+    "two-finger-vertical-dolly",
+    "content-schema-code"
+  ],
+  "baselineRenderer": "app/renderer/demo-0820",
+  "phases": [
+    {
+      "id": 1,
+      "name": "App Shell / 4 Windows / StateCoordinator",
+      "nextToImplement": false,
+      "implemented": true,
+      "entry": "npm run start:production",
+      "includes": [
+        "four-BrowserWindow",
+        "monitor-layout-config",
+        "globalScene",
+        "perMonitorState",
+        "debug-log"
+      ],
+      "excludes": [
+        "real-ad-animation-video",
+        "three-list-world",
+        "image-zoom-redesign",
+        "category-modal"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "AD_IDLE / ANIMATION / 120sec reset",
+      "implemented": true,
+      "nextToImplement": false,
+      "entry": "npm run start:production",
+      "includes": [
+        "in-app-ads",
+        "any-monitor-touch-start",
+        "in-app-animation",
+        "touch-ignored-during-animation",
+        "global-120s-non-touch",
+        "global-reset"
+      ],
+      "excludes": [
+        "three-list-world",
+        "bubble",
+        "dolly-cruise",
+        "image-zoom-real-ui",
+        "category-modal",
+        "ux-feedback"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "4-screen PRODUCT_LIST",
+      "implemented": true,
+      "nextToImplement": false,
+      "includes": [
+        "shared-base-world-cloned",
+        "per-monitor-viewport",
+        "per-monitor-camera-dolly-bubble",
+        "content-images",
+        "four-monitor-visual-check"
+      ]
+    },
+    {
+      "id": 3.5,
+      "name": "content image intake and validation",
+      "implemented": true,
+      "check": "npm run check:production-content"
+    },
+    {
+      "id": 4,
+      "name": "Local overlays",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase4",
+      "includes": [
+        "IMAGE_ZOOM",
+        "CategoryDrawer",
+        "Category modal",
+        "per-monitor-overlay-independence"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "UX Feedback implementation",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase5",
+      "includes": [
+        "image-zoom-small-plus-text",
+        "near-fade-cut",
+        "appear-fade-in",
+        "noise-revisit",
+        "white-border",
+        "box-logo",
+        "two-finger-vertical-dolly",
+        "category-modal-horizontal-slide"
+      ]
+    },
+    {
+      "id": 5.5,
+      "name": "Production-size preview and UX polish",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase55",
+      "entry": "npm run start:production:preview",
+      "entryMulti": "npm run start:production:preview:multi",
+      "includes": [
+        "preview-mode-portrait-1080x1920",
+        "preview-single-window-default",
+        "preview-multi-window-state-check",
+        "preview-scale",
+        "list-preload-during-animation",
+        "noise-mp4",
+        "drawer-scrim-close",
+        "category-modal-loop",
+        "box-logo-white-background"
+      ]
+    },
+    {
+      "id": 5.7,
+      "name": "UX pass 1 — LIST / IMAGE_ZOOM card / Drawer / chrome",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase57",
+      "entry": "npm run start:production:preview",
+      "includes": [
+        "review-debug-chrome-toggle",
+        "no-loading-copy",
+        "near-fade-earlier",
+        "preview-runtime-defaults",
+        "noise-opacity-0.14",
+        "image-zoom-white-card",
+        "logo-text-png",
+        "image-copy-schema-proposal",
+        "drawer-0820-type"
+      ]
+    },
+    {
+      "id": 5.8,
+      "name": "LIST fade / density / IMAGE_ZOOM balance / Drawer motion",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase58",
+      "entry": "npm run start:production:preview",
+      "includes": [
+        "preview-default-frameless",
+        "near-fade-720-260",
+        "visual-preset-clean",
+        "bubble-160-80-off",
+        "density-dense-96",
+        "noise-opacity-0.20",
+        "image-zoom-fixed-card",
+        "logo-text-larger",
+        "thin-close-glyph",
+        "drawer-0820-css-motion"
+      ]
+    },
+    {
+      "id": 5.9,
+      "name": "Feel pass — near fade / list speed / IMAGE_ZOOM motion",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase59",
+      "entry": "npm run start:production:preview",
+      "includes": [
+        "preview-startup-scene-docs",
+        "near-fade-1180-520",
+        "list-speed-2.6",
+        "logo-text-64-120",
+        "image-zoom-css-motion"
+      ]
+    },
+    {
+      "id": "5.10",
+      "name": "Near fade alpha-only / LOGO 2.5x / shorter IMAGE_ZOOM motion",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase510",
+      "entry": "npm run start:production:preview",
+      "includes": [
+        "near-fade-alpha-only",
+        "max-apparent-scale-clamp",
+        "logo-text-2.5x",
+        "image-zoom-motion-shorter"
+      ]
+    },
+    {
+      "id": "5.11",
+      "name": "Earlier near fade / slightly longer IMAGE_ZOOM close",
+      "implemented": true,
+      "nextToImplement": false,
+      "check": "npm run check:production-phase511",
+      "entry": "npm run start:production:preview",
+      "includes": [
+        "near-fade-1760-960-linear",
+        "image-zoom-close-180"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Content / Operation",
+      "nextToImplement": true,
+      "includes": [
+        "content-schema",
+        "validation",
+        "transfer-launch-notes",
+        "log",
+        "recovery",
+        "logo-path-migration"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Long-run / On-site test",
+      "includes": [
+        "four-screen-endurance",
+        "120s-return",
+        "multi-user-simultaneous",
+        "fps",
+        "context-lost",
+        "WinTouch",
+        "ops-check"
+      ]
+    }
+  ],
+  "orderConstraint": "do-not-do-phase-5-before-phase-4-overlay-independence"
+}

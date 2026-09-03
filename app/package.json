@@ -1,0 +1,46 @@
+{
+  "name": "trunk-kiosk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TRUNK 4-monitor exploration kiosk (Electron + Web)",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "dist/electron/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron .",
+    "build:0820": "npm --prefix renderer/demo-0820 run build",
+    "start:0820": "npm run build:0820 && node scripts/start-demo-0820.js",
+    "build:0820-color": "npm --prefix renderer/demo-0820-color run build",
+    "start:0820-color": "npm run build:0820-color && node scripts/start-demo-0820-color.js",
+    "build:production": "npm --prefix renderer/production run build",
+    "start:production": "npm run build:production && node scripts/start-production.js",
+    "start:production:preview": "npm run build:production && node scripts/start-production-preview.js single",
+    "start:production:preview:single": "npm run build:production && node scripts/start-production-preview.js single",
+    "start:production:preview:multi": "npm run build:production && node scripts/start-production-preview.js multi",
+    "check:production-overlay": "node scripts/check-production-overlay.js",
+    "check:production-phase2": "node scripts/check-production-phase2.js",
+    "check:production-content": "node scripts/check-production-content.js",
+    "check:production-phase4": "node scripts/check-production-phase4.js",
+    "check:production-phase5": "node scripts/check-production-phase5.js",
+    "check:production-phase55": "node scripts/check-production-phase55.js",
+    "check:production-phase57": "node scripts/check-production-phase57.js",
+    "check:production-phase58": "node scripts/check-production-phase58.js",
+    "check:production-phase59": "node scripts/check-production-phase59.js",
+    "check:production-phase510": "node scripts/check-production-phase510.js",
+    "check:production-phase511": "node scripts/check-production-phase511.js",
+    "check:production-phase514": "node scripts/check-production-phase514.js",
+    "check:production-phase515": "node scripts/check-production-phase515.js",
+    "check:production-phase516": "node scripts/check-production-phase516.js",
+    "check:production-phase6": "node scripts/check-production-phase6.js",
+    "check:production-phase7": "node scripts/check-production-phase7.js",
+    "check:production-brand-fonts": "node scripts/check-production-brand-fonts.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^43.0.0",
+    "typescript": "^5.7.2"
+  }
+}

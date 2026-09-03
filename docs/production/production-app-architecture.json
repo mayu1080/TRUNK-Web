@@ -1,0 +1,144 @@
+{
+  "doc": "production-app-architecture",
+  "version": "0.1",
+  "date": "2026-08-29",
+  "phase": 0,
+  "status": "design-only",
+  "sourceOfTruth": {
+    "experienceBaseline": "app/renderer/demo-0820",
+    "productionRuntime": "docs/production/*",
+    "supersedes": [
+      "docs/architecture.md screenState TOP / IMAGE_ZOOM / PRODUCT_DETAIL as global",
+      "docs/screen-flow.json 10min per-monitor idle",
+      "repo-root Logo/ as production logo root"
+    ]
+  },
+  "recommendedStack": {
+    "runtime": "Electron",
+    "windows": 4,
+    "ads": "in-app-video",
+    "animation": "in-app-video",
+    "productList": "Three.js",
+    "interaction": "per-monitor",
+    "content": "shared-external-content-folder",
+    "syncTransport": "electron-main-ipc"
+  },
+  "globalScene": ["AD_IDLE", "ANIMATION", "PRODUCT_LIST"],
+  "localOverlay": ["NONE", "IMAGE_ZOOM", "CATEGORY_DRAWER", "CATEGORY_MODAL"],
+  "syncedScopes": [
+    "AD_IDLE",
+    "ANIMATION",
+    "PRODUCT_LIST_ENTRY",
+    "GLOBAL_IDLE_RETURN_TO_AD_IDLE"
+  ],
+  "independentAfterList": [
+    "pan",
+    "dolly",
+    "bubble",
+    "IMAGE_ZOOM",
+    "CATEGORY_DRAWER",
+    "CATEGORY_MODAL"
+  ],
+  "windows": {
+    "touchWindowCount": 4,
+    "monitorIdRange": [1, 4],
+    "managementMonitor": "excluded-from-experience-and-wall-resolution",
+    "layoutConfig": "monitor-layout.json",
+    "layoutFields": [
+      "monitorId",
+      "x",
+      "y",
+      "width",
+      "height",
+      "orientation",
+      "viewportOffsetX",
+      "viewportOffsetY",
+      "scale"
+    ],
+    "boundsMatchTolerancePx": 8
+  },
+  "coordinators": [
+    "StateCoordinator",
+    "ContentService",
+    "TouchActivityManager",
+    "VideoSyncController",
+    "LogDebugController"
+  ],
+  "listWorld": {
+    "model": "cloned-per-monitor",
+    "shared": ["baseWorldLayout", "cardDataset", "initialPositions", "contentSource"],
+    "perMonitor": [
+      "viewport",
+      "camera",
+      "pan",
+      "dolly",
+      "bubble",
+      "selectedImage",
+      "categoryDrawer",
+      "categoryModal"
+    ]
+  },
+  "adPlayback": {
+    "recommended": "B",
+    "B": "electron-in-app-video",
+    "A": "external-player-then-raise-electron",
+    "recommendationReason": [
+      "touch-detection",
+      "four-screen-sync",
+      "idle-return",
+      "focus",
+      "windows-ops",
+      "content-swap",
+      "stability"
+    ]
+  },
+  "adMode": "four-screen-synced-content",
+  "adLogicalModel": "one-content-synced-to-four-screens",
+  "videoLayout": {
+    "phase2Candidates": ["four-split-files", "single-wall-crop", "ads-json-binding"],
+    "preferred": "ads-json-plus-convention-paths",
+    "rejected": ["single-wall-crop"],
+    "ads": [
+      "content/ads/monitor-1.mp4",
+      "content/ads/monitor-2.mp4",
+      "content/ads/monitor-3.mp4",
+      "content/ads/monitor-4.mp4"
+    ],
+    "animation": [
+      "content/animation/monitor-1.mp4",
+      "content/animation/monitor-2.mp4",
+      "content/animation/monitor-3.mp4",
+      "content/animation/monitor-4.mp4"
+    ],
+    "binding": ["content/ads.json", "content/animation.json"],
+    "endPolicy": "duration",
+    "skipOnTouch": false,
+    "fatalIfMissingDefault": false
+  },
+  "logo": {
+    "list": false,
+    "imageZoom": true,
+    "categoryModal": true,
+    "assetDir": "content/Logo",
+    "interactive": false
+  },
+  "overlayIndependence": {
+    "lockScope": "owning-monitor-only",
+    "otherMonitorsRemainInteractive": true,
+    "globalIdleClearsAll": true
+  },
+  "bubble": {
+    "scope": "touched-monitor-only",
+    "broadcastToAllMonitors": false
+  },
+  "openQuestions": [
+    "management-monitor-exclusion-rule",
+    "bounds-mismatch-fatal-or-degraded",
+    "monitor-layout-json-location",
+    "cameraState-sync-to-main",
+    "video-end-policy",
+    "ad-loop-clock",
+    "four-decode-budget",
+    "noise-texture"
+  ]
+}

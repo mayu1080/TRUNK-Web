@@ -1,0 +1,14 @@
+{
+  "contentId": "animation-entry",
+  "skipOnTouch": false,
+  "endPolicy": "duration",
+  "durationMs": 5000,
+  "safetyCapMs": 7000,
+  "fatalIfMissing": false,
+  "tracks": [
+    { "monitorId": 1, "file": "animation/LogoMotion_Trunk.mp4" },
+    { "monitorId": 2, "file": "animation/LogoMotion_Trunk.mp4" },
+    { "monitorId": 3, "file": "animation/LogoMotion_Trunk.mp4" },
+    { "monitorId": 4, "file": "animation/LogoMotion_Trunk.mp4" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": "2026-07-04-sample-001",
+  "updatedAt": "2026-07-04T16:00:00+09:00",
+  "categoriesFile": "categories.json",
+  "productsFile": "products.json",
+  "assetBaseDir": ".",
+  "defaultListImageDir": "images/list",
+  "cmVideoDir": "videos/cm"
+}

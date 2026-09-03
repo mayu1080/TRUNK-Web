@@ -44,9 +44,24 @@ coverage/
 
 # === Media assets (keep out of git) ===
 *.mp4
+!docs/Design_Check0622.mp4
+
+# === Client images under content/ (local only; keep repo samples) ===
+content/images/**/*
+!content/images/**/sample_*.svg
+
+# === Venue content binaries (USB at site; not cloned from GitHub) ===
+content/fonts/
+content/Logo/
+content/text/
 
 # === Docs: temporary artifacts ===
 docs/_xlsx_tmp/
 docs/*.zip
 docs/*.extracted.json
 
+# === Docs: local-only (not uploaded to GitHub) ===
+docs/open-questions.md
+
+# LIST_demo is on feature/list-demo only; production clones omit it
+LIST_demo/

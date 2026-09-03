@@ -1,0 +1,189 @@
+{
+  "flowName": "B案：探索デザイン重視型",
+  "sourceOfTruth": "docs/function.xlsx（MUSTSHOULD要件一覧_2）",
+  "behavioralReference": "docs/Design_Check0622.mp4（機能挙動の正。画質は対象外）",
+  "stateIdConvention": "実装・ドキュメント共通の画面状態ID（英大文字スネーク）",
+  "screens": [
+    {
+      "id": "TOP",
+      "name": "スリープ画面",
+      "type": "top",
+      "purpose": "4枚マルチモニター表示。全台が TOP のときのみ、いずれか1台の有効タップで4面同期遷移する入口",
+      "panels": [
+        { "panelIndex": 1, "label": "トップ-1" },
+        { "panelIndex": 2, "label": "トップ-2" },
+        { "panelIndex": 3, "label": "トップ-3" },
+        { "panelIndex": 4, "label": "トップ-4" }
+      ]
+    },
+    {
+      "id": "ANIMATION",
+      "name": "アニメーション_1",
+      "type": "transition",
+      "purpose": "探索画面遷移前のアニメーション。終了後に自動遷移"
+    },
+    {
+      "id": "PRODUCT_LIST",
+      "name": "探索画面",
+      "type": "explore",
+      "purpose": "暗色の探索画面。多数の浮遊画像を配置。スワイプ・ピンチ・画像タップで操作。表示後は各モニター操作は独立"
+    },
+    {
+      "id": "IMAGE_ZOOM",
+      "name": "画像拡大画面",
+      "type": "modal",
+      "purpose": "暗色探索背景の上に重ねる白い overlay/card。状態管理は screenState として独立。×で常に PRODUCT_LIST へ"
+    },
+    {
+      "id": "PRODUCT_DETAIL",
+      "name": "詳細画面",
+      "type": "detail",
+      "purpose": "カテゴリ選択後の白い詳細/カルーセル画面。×で PRODUCT_LIST へ",
+      "scrollSections": [
+        {
+          "id": "DETAIL_SECTION_1",
+          "name": "詳細画面-1",
+          "purpose": "詳細画面内スクロールセクション（上部）"
+        },
+        {
+          "id": "DETAIL_SECTION_2",
+          "name": "詳細画面-2",
+          "purpose": "詳細画面内スクロールセクション（下部）。別画面ではなく同一 PRODUCT_DETAIL 内で管理"
+        }
+      ]
+    }
+  ],
+  "uiState": {
+    "categoryDrawer": {
+      "uxName": "CATEGORY（カテゴリ画面）",
+      "values": ["open", "closed"],
+      "ownerScreen": "PRODUCT_LIST",
+      "description": "独立 screenState ではない。PRODUCT_LIST 上の右側スライドドロワー"
+    },
+    "imageZoomPresentation": {
+      "value": "overlayOnProductList",
+      "description": "IMAGE_ZOOM は暗色 PRODUCT_LIST 背景の上に白い overlay/card として重ねて表示"
+    },
+    "trunkLogo": {
+      "value": "decorativeOnly",
+      "description": "TRUNK ロゴは装飾画像のみ。クリック/タップハンドラを付けない"
+    }
+  },
+  "syncRules": [
+    {
+      "id": "MULTI_MONITOR_SYNC_ENTRY",
+      "description": "4面同期の対象は TOP → ANIMATION → PRODUCT_LIST まで",
+      "syncedPath": ["TOP", "ANIMATION", "PRODUCT_LIST"]
+    },
+    {
+      "id": "MULTI_MONITOR_SYNC_ENTRY_REQUIRES_ALL_TOP",
+      "description": "TOP → ANIMATION の4面同期は、4台すべてが screenState=TOP のときのみ発火する。1台だけ TOP（無操作タイムアウト等）の状態で他台が探索中の場合、当該台の再開操作は他台を中断しない",
+      "appliesTo": ["TOP", "ANIMATION"]
+    },
+    {
+      "id": "MULTI_MONITOR_INDEPENDENT_AFTER_LIST",
+      "description": "PRODUCT_LIST 表示後は各モニター操作は独立。別ユーザーが各モニターで探索を開始・継続できる",
+      "appliesFrom": ["PRODUCT_LIST"]
+    },
+    {
+      "id": "MULTI_MONITOR_ANIMATION_SYNC",
+      "description": "ANIMATION は4面同期再生が必須（全台 TOP からの同期開始時のみ）",
+      "appliesTo": ["ANIMATION"]
+    },
+    {
+      "id": "IDLE_TIMEOUT_PER_MONITOR",
+      "description": "無操作10分で当該モニターのみ TOP へ復帰。他モニターには影響しない。グローバル同期を発火しない",
+      "durationSeconds": 600,
+      "scope": "perMonitor",
+      "appliesFrom": ["PRODUCT_LIST", "PRODUCT_DETAIL", "IMAGE_ZOOM"],
+      "resetInteractions": ["tap", "swipe", "pinch", "scroll"],
+      "resetBehavior": "いずれかの操作でタイムアウトカウントを再スタート"
+    }
+  ],
+  "uiStateTransitions": [
+    {
+      "screen": "PRODUCT_LIST",
+      "uiState": "categoryDrawer",
+      "from": "closed",
+      "to": "open",
+      "trigger": "ハンバーガーメニュー（当該モニターのみ）"
+    },
+    {
+      "screen": "PRODUCT_LIST",
+      "uiState": "categoryDrawer",
+      "from": "open",
+      "to": "closed",
+      "trigger": "×ボタン（当該モニターのみ）"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "TOP",
+      "to": "ANIMATION",
+      "trigger": "指定箇所タップ（4台すべて TOP のときのみ4面同期）"
+    },
+    {
+      "from": "ANIMATION",
+      "to": "PRODUCT_LIST",
+      "trigger": "アニメーション終了（自動遷移・4面同期）"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "IMAGE_ZOOM",
+      "trigger": "画像タップ（暗色探索画面上・当該モニターのみ）"
+    },
+    {
+      "from": "IMAGE_ZOOM",
+      "to": "PRODUCT_LIST",
+      "trigger": "×ボタン（直前画面へは戻らず常に PRODUCT_LIST・当該モニターのみ）"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "PRODUCT_DETAIL",
+      "trigger": "カテゴリ選択（categoryDrawer 上・当該モニターのみ）"
+    },
+    {
+      "from": "PRODUCT_DETAIL",
+      "to": "PRODUCT_LIST",
+      "trigger": "×ボタン（当該モニターのみ）"
+    },
+    {
+      "from": "PRODUCT_LIST",
+      "to": "TOP",
+      "trigger": "無操作10分（当該モニターのみ）"
+    },
+    {
+      "from": "PRODUCT_DETAIL",
+      "to": "TOP",
+      "trigger": "無操作10分（当該モニターのみ）"
+    },
+    {
+      "from": "IMAGE_ZOOM",
+      "to": "TOP",
+      "trigger": "無操作10分（当該モニターのみ）"
+    }
+  ],
+  "removedBehaviors": [
+    {
+      "id": "LOGO_TAP_TO_TOP",
+      "description": "TRUNK ロゴタップによる TOP 復帰は廃止。ロゴは装飾のみ"
+    },
+    {
+      "id": "GLOBAL_SYNC_FROM_SINGLE_TOP",
+      "description": "1台のみ TOP にいる状態からの操作で他台を同期させる挙動は禁止"
+    }
+  ],
+  "requirementsRef": "docs/function.xlsx",
+  "runtime": {
+    "platform": "Windows",
+    "shell": "Electron",
+    "ui": "Web",
+    "contentRoot": {
+      "development": "./content",
+      "production": "{execDir}/content",
+      "overrideEnv": "TRUNK_CONTENT_ROOT"
+    },
+    "contentSchema": "docs/content-schema.md",
+    "architectureRef": "docs/architecture.md"
+  }
+}

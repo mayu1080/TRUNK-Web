@@ -1,75 +1,41 @@
 flowchart TD
-  %% 画面遷移図
+  %% 画面遷移図（正: Design_Check0622.mp4 → docs/screen-flow.json）
   %% B案：探索デザイン重視型
 
-  %% =========================
-  %% スリープ（トップ群）
-  %% =========================
-  subgraph TOP_AREA["スリープ画面（4面表示）"]
+  subgraph TOP_AREA["TOP スリープ画面"]
     direction LR
-    TOP_1["トップ-1"]
-    TOP_2["トップ-2"]
-    TOP_3["トップ-3"]
-    TOP_4["トップ-4"]
+    P1["panel-1"]
+    P2["panel-2"]
+    P3["panel-3"]
+    P4["panel-4"]
   end
 
-  %% =========================
-  %% 祝祭演出 / 導入アニメーション
-  %% =========================
-  FESTIVAL["祝祭演出\n(特別アニメーション 3-5秒)"]
-  ANIMATION_1["アニメーション_1\n(探索画面遷移前)"]
+  ANIMATION["ANIMATION\nアニメーション_1"]
+  PRODUCT_LIST["PRODUCT_LIST\n暗色探索画面\n+ categoryDrawer"]
+  IMAGE_ZOOM["IMAGE_ZOOM\n白 overlay/card"]
+  PRODUCT_DETAIL["PRODUCT_DETAIL\n白詳細/カルーセル"]
 
-  %% =========================
-  %% 探索体験
-  %% =========================
-  EXPLORE["探索画面"]
-  CATEGORY["カテゴリ画面"]
-  DETAIL["詳細画面"]
-  IMAGE_ZOOM["画像拡大画面\n(モーダル)"]
+  TOP_AREA -->|全台TOP時タップ・4面同期| ANIMATION
+  ANIMATION -->|自動遷移・4面同期| PRODUCT_LIST
 
-  %% =========================
-  %% 基本導線
-  %% =========================
-  TOP_1 -->|指定箇所タップ| ANIMATION_1
-  TOP_1 -->|指定箇所ダブルタップ| FESTIVAL
-  FESTIVAL -->|演出終了| ANIMATION_1
-  ANIMATION_1 -->|演出終了| EXPLORE
+  PRODUCT_LIST -->|画像タップ・各台独立| IMAGE_ZOOM
+  IMAGE_ZOOM -->|×→常に LIST・各台独立| PRODUCT_LIST
 
-  TOP_2 --> ANIMATION_1
-  TOP_3 --> ANIMATION_1
-  TOP_4 --> ANIMATION_1
+  PRODUCT_LIST -->|categoryDrawer カテゴリ選択・各台独立| PRODUCT_DETAIL
+  PRODUCT_DETAIL -->|×・各台独立| PRODUCT_LIST
 
-  EXPLORE -->|画像タップ| IMAGE_ZOOM
-  IMAGE_ZOOM -->|×ボタン| EXPLORE
+  PRODUCT_LIST -->|無操作10分・各台独立| TOP_AREA
+  PRODUCT_DETAIL -->|無操作10分・各台独立| TOP_AREA
+  IMAGE_ZOOM -->|無操作10分・各台独立| TOP_AREA
 
-  EXPLORE -->|ハンバーガーメニュー| CATEGORY
-  CATEGORY -->|×ボタン| EXPLORE
-  CATEGORY -->|カテゴリ選択| DETAIL
-  DETAIL -->|×ボタン| CATEGORY
-
-  %% =========================
-  %% 回遊・復帰導線
-  %% =========================
-  EXPLORE -->|一定時間操作なし| TOP_1
-  CATEGORY -->|一定時間操作なし| TOP_1
-  DETAIL -->|一定時間操作なし| TOP_1
-  IMAGE_ZOOM -->|一定時間操作なし| TOP_1
-
-  %% =========================
-  %% 表示スタイル
-  %% =========================
   classDef top fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
   classDef animation fill:#cfe3ff,stroke:#6a9bd8,stroke-width:1px,color:#222;
-  classDef explore fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
-  classDef category fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
-  classDef detail fill:#fff4b8,stroke:#c9b94a,stroke-width:1px,color:#222;
-  classDef zoom fill:#ffffff,stroke:#777,stroke-width:1px,color:#222;
-  classDef special fill:#ffffff,stroke:#777,stroke-width:1px,color:#222;
+  classDef explore fill:#333333,stroke:#888888,stroke-width:1px,color:#eee;
+  classDef detail fill:#ffffff,stroke:#777777,stroke-width:1px,color:#222;
+  classDef zoom fill:#ffffff,stroke:#777777,stroke-width:1px,color:#222;
 
-  class TOP_1,TOP_2,TOP_3,TOP_4 top;
-  class FESTIVAL special;
-  class ANIMATION_1 animation;
-  class EXPLORE explore;
-  class CATEGORY category;
-  class DETAIL detail;
+  class P1,P2,P3,P4 top;
+  class ANIMATION animation;
+  class PRODUCT_LIST explore;
+  class PRODUCT_DETAIL detail;
   class IMAGE_ZOOM zoom;

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "food",
+    "label": "Food",
+    "title": "TOKYO FOOD",
+    "description": "説明文がここに入ります。カテゴリの紹介は、この白いカード内のテキスト欄だけを上下にスワイプして読めます。文章が長くなってもカード全体の高さは変わりません。将来的には categories.json の description を表示します。プレースホルダの続きです。フレンチの技法と東京らしさ、日本の美意識を重ねた料理の世界を、静かにめくってご覧ください。",
+    "imageDir": "images/food",
+    "order": 1,
+    "coverDir": "images/cover",
+    "insertCoverBetweenFolders": true,
+    "contentFolders": ["yamabuki", "akari", "jyunpaku", "wakakusa", "gen", "byakuroku", "Option"],
+    "contentFolderLabels": {
+      "yamabuki": "山吹",
+      "akari": "朱",
+      "jyunpaku": "純白",
+      "wakakusa": "若草",
+      "gen": "玄",
+      "byakuroku": "白緑",
+      "Option": "Option"
+    }
+  },
+  {
+    "id": "gift",
+    "label": "Gift",
+    "title": "TOKYO GIFT",
+    "description": "説明文がここに入ります。カテゴリの紹介は、この白いカード内のテキスト欄だけを上下にスワイプして読めます。文章が長くなってもカード全体の高さは変わりません。将来的には categories.json の description を表示します。プレースホルダの続きです。贈り物としての品を、余白のある視線で眺めてください。",
+    "imageDir": "images/gift",
+    "order": 2,
+    "insertCoverBetweenFolders": false,
+    "contentFolders": ["catalog-gift", "pound-cake", "furikake"],
+    "contentFolderLabels": {
+      "catalog-gift": "カタログギフト",
+      "pound-cake": "パウンドケーキ",
+      "furikake": "ふりかけ"
+    }
+  },
+  {
+    "id": "flower",
+    "label": "Flower",
+    "title": "TOKYO FLOWER",
+    "description": "説明文がここに入ります。カテゴリの紹介は、この白いカード内のテキスト欄だけを上下にスワイプして読めます。文章が長くなってもカード全体の高さは変わりません。将来的には categories.json の description を表示します。プレースホルダの続きです。季節の花を、静かなリズムでご覧ください。",
+    "imageDir": "images/flower",
+    "order": 3,
+    "insertCoverBetweenFolders": false,
+    "contentFolders": ["NATURE"]
+  }
+]

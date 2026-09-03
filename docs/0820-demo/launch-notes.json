@@ -1,0 +1,258 @@
+{
+  "demoName": "0820-single-monitor",
+  "demoDate": "2026-08-20",
+  "createdAt": "2026-08-19",
+  "phase": 8,
+  "docPath": "docs/0820-demo/launch-notes.md",
+  "smokeTestPath": "docs/0820-demo/final-smoke-test.md",
+  "purpose": "1枚の55インチ縦タッチで PRODUCT_LIST 体験を合意するデモ。本番完成版ではない。",
+  "scope": [
+    "PRODUCT_LIST Three space",
+    "Bubble Color Reveal",
+    "tap → IMAGE_ZOOM → close → PRODUCT_LIST",
+    "CategoryDrawer",
+    "category select → PRODUCT_DETAIL placeholder → close → PRODUCT_LIST",
+    "WinTouch pinch / Shift+scroll Dolly Cruise",
+    "Electron dev start, 1 window"
+  ],
+  "outOfScope": [
+    "4-monitor sync",
+    "PRODUCT_DETAIL full implementation",
+    "exe packaging",
+    "Vercel publish",
+    "admin monitor production spec",
+    "CategoryDrawer redesign",
+    "LIST_demo / DF / DE / DD / DB / DA changes"
+  ],
+  "startCommand": {
+    "cwd": "app",
+    "command": "npm run start:0820",
+    "env": {
+      "TRUNK_DEMO": "0820",
+      "TRUNK_MONITOR_COUNT": "1",
+      "TRUNK_IDLE_TIMEOUT_SECONDS": "600"
+    },
+    "notes": [
+      "Kill leftover Electron processes first",
+      "Connect 55in portrait monitor and set Windows orientation before launch",
+      "Portrait workArea height >= 1600 fills the work area; landscape dev PCs stay 540x960",
+      "Show visitors in Review Mode; Debug only for adjustment",
+      "On another Windows PC use repo-root setup-0820.bat then launch-0820.bat"
+    ]
+  },
+  "transfer": {
+    "docPath": "docs/0820-demo/transfer-test.md",
+    "setupBat": "setup-0820.bat",
+    "launchBat": "launch-0820.bat",
+    "copyMethod": "copy whole TRUNK_delivery folder including content/images; git clone is not enough",
+    "node": {
+      "recommended": ">=22.12.0",
+      "verifiedOnDevPc": "v24.15.0",
+      "reason": "electron@43 engines.node is >=22.12.0"
+    },
+    "install": {
+      "recommended": "npm ci",
+      "fallback": "npm install only if ci fails on lock mismatch",
+      "directories": ["app", "app/renderer/demo-0820"]
+    },
+    "lockfiles": [
+      "app/package.json",
+      "app/package-lock.json",
+      "app/renderer/demo-0820/package.json",
+      "app/renderer/demo-0820/package-lock.json"
+    ],
+    "contentRoot": {
+      "hardcodedToOriginalPc": false,
+      "devDefault": "path.resolve(process.cwd(), '..', 'content')",
+      "overrideEnv": "TRUNK_CONTENT_ROOT"
+    },
+    "contentProtocol": {
+      "scheme": "trunk-content",
+      "worksOnOtherWindows": true,
+      "note": "Registered inside this Electron process; URLs are relative (trunk-content://local/...)"
+    }
+  },
+  "requiredFlow": [
+    "TOP",
+    "ANIMATION",
+    "PRODUCT_LIST",
+    "IMAGE_ZOOM",
+    "PRODUCT_LIST",
+    "CategoryDrawer",
+    "PRODUCT_DETAIL",
+    "PRODUCT_LIST"
+  ],
+  "debugKeys": {
+    "toggleDebug": ["g", "d"],
+    "review": ["r"],
+    "defaultMode": "review"
+  },
+  "defaults": {
+    "DEMO_PHASE": 8,
+    "bubbleSizePx": 320,
+    "revealRadiusPx": 160,
+    "cameraDollySpeed": 1.0,
+    "dollyPoseSmoothing": 0.2,
+    "pinchDollyScale": 1.0,
+    "dollyCruiseEnabled": true,
+    "rendererPixelRatioMax": 2,
+    "cardLongSide": 280,
+    "cardScaleRange": [0.72, 1.28],
+    "cameraFov": 52,
+    "initialCameraZ": 1800,
+    "hamburgerPx": 52,
+    "drawerWidth": "calc(100vw / 3)"
+  },
+  "demoToggles": [
+    {
+      "id": "visualPreset",
+      "affects": "card tint and fog",
+      "when": "color too warm or too flat",
+      "caution": "changes overall look; revert before visitors"
+    },
+    {
+      "id": "bubbleMotion",
+      "affects": "elegant breath+glint vs static circle",
+      "when": "FPS drop or motion too busy",
+      "caution": "off keeps color reveal"
+    },
+    {
+      "id": "uiMode",
+      "affects": "review vs debug chrome",
+      "when": "always review for visitors",
+      "caution": "do not present in debug"
+    },
+    {
+      "id": "pixelRatioCap",
+      "affects": "GPU drawing buffer cap 1 / 1.5 / 2",
+      "when": "FPS stays below ~50",
+      "caution": "first performance lever; image slightly softer"
+    },
+    {
+      "id": "bubbleSize",
+      "affects": "bubble CSS diameter",
+      "when": "55in too small or too large",
+      "caution": "options 160/240/320/400/480; default 320"
+    },
+    {
+      "id": "revealRadius",
+      "affects": "color reveal radius",
+      "when": "color disk mismatches bubble",
+      "caution": "options 120/160/200/260; default 160"
+    },
+    {
+      "id": "listSpeed",
+      "affects": "card drift and idle float only",
+      "when": "space too still or too busy",
+      "caution": "does not change camera input"
+    },
+    {
+      "id": "dollyCruise",
+      "affects": "inertial depth for shift-wheel and pinch",
+      "when": "A/B only",
+      "caution": "keep on for visitors"
+    },
+    {
+      "id": "dollyFeel",
+      "affects": "sets speed + smoothing + pinch together",
+      "when": "need a one-shot pinch strength change",
+      "caution": "try deep on 55in; conservative/default/deep/punchy"
+    },
+    {
+      "id": "dollySpeed",
+      "affects": "impulse scale for shift-wheel, pinch, and normal wheel",
+      "when": "one pinch travels too far or too little",
+      "caution": "initial velocity, not coast length"
+    },
+    {
+      "id": "dollySmoothing",
+      "affects": "how fast camera catches targetCameraZ while cruising",
+      "when": "camera lags or feels snappy",
+      "caution": "higher = faster catch-up; not inertia duration"
+    },
+    {
+      "id": "pinchSensitivity",
+      "affects": "extra scale for two-finger pinch only",
+      "when": "pinch too weak/strong vs wheel",
+      "caution": "does not change wheel; stacked on dolly speed"
+    }
+  ],
+  "knownIssues": [
+    "PRODUCT_DETAIL is a placeholder",
+    "CategoryDrawer Frozen look may feel small on 55in; do not restyle on the day",
+    "hamburger 52px may feel small on 55in",
+    "drawer width is 1/3 viewport (approved delta vs Frozen 320px)",
+    "world size needs 55in judgment; do not large-retune on the day",
+    "content/images/list has 0 files; recursive-images 25 sources duplicated to 70 cards",
+    "images are temporary / reused assets",
+    "Debug UI must not be shown to visitors; use Review",
+    "Electron CSP unsafe-eval warning is known in dev",
+    "Parsec may look stuttery; judge on local PC and monitor",
+    "normal wheel and Shift+wheel are different; visitors use pinch",
+    "ANIMATION is a placeholder; LIST warms up behind it until textures settle",
+    "idle 10 minutes returns to TOP and unmounts LIST (no second-loop keep-alive)",
+    "exe packaging not in 8/20 scope"
+  ],
+  "troubleshooting": {
+    "oldPhase": ["kill Electron", "npm run start:0820", "confirm phase 8 in Debug HUD"],
+    "lowFps": ["Review Mode", "pixel ratio cap 1.5 then 1.0", "bubble motion off", "reduce Parsec/other GPU load"],
+    "noImages": ["check contentRoot", "check content/images", "check realImageCount and textureLoadedCount", "scheme must be trunk-content"],
+    "noTap": ["close zoom/drawer/detail", "interactionEnabled true", "not pinching", "short tap under 16px / 600ms"],
+    "noBubble": ["PRODUCT_LIST only", "drawer/zoom/detail closed", "bubbleAllowed true"],
+    "pinchZoomsPage": ["restart Electron; visual zoom is locked to 1"],
+    "animationStuck": ["wait up to ~12s for textures", "then check texture failures and restart"],
+    "contextLost": ["restart app", "close other GPU apps"]
+  },
+  "smokeTestItems": [
+    "starts",
+    "TOP visible",
+    "TOP tap → ANIMATION",
+    "PRODUCT_LIST visible",
+    "canvas count = 1",
+    "about 70 images displayed",
+    "Bubble visible",
+    "color restore only inside Bubble",
+    "one-finger drag",
+    "two-finger pinch",
+    "tap → IMAGE_ZOOM",
+    "IMAGE_ZOOM close → PRODUCT_LIST",
+    "hamburger → drawer",
+    "drawer close",
+    "Food → PRODUCT_DETAIL",
+    "PRODUCT_DETAIL close → PRODUCT_LIST",
+    "Gift → PRODUCT_DETAIL",
+    "Flower → PRODUCT_DETAIL",
+    "Review Mode hides Debug UI",
+    "FPS not badly dropped",
+    "no unexpected console error",
+    "no Context Lost"
+  ],
+  "phaseStatus": {
+    "0": "passed",
+    "1": "passed",
+    "2": "passed",
+    "3": "passed",
+    "4": "passed",
+    "5": "passed",
+    "6": "passed",
+    "6.5": "passed",
+    "7": "passed-on-device-per-operator",
+    "8": "passed-dev-pc-smoke"
+  },
+  "lastSmokeTest": {
+    "at": "2026-08-19T12:59:00Z",
+    "environment": "dev-pc",
+    "windowCss": "524x895",
+    "dpr": 1,
+    "ok": true,
+    "fpsIdle": 52,
+    "fpsAfterInteractions": 60,
+    "displayedImageCount": 70,
+    "textureLoadedCount": 70,
+    "sourceImageCount": 25,
+    "consoleError": false,
+    "contextLost": false,
+    "knownConsole": ["Electron CSP unsafe-eval warning"],
+    "note": "55in / WinTouch final feel remains an on-site check. Dev CDP verified the required software flow."
+  }
+}

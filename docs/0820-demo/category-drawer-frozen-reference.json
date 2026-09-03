@@ -1,0 +1,148 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-08-18",
+  "title": "CategoryDrawer Frozen Reference (8/20 demo)",
+  "docPath": "docs/0820-demo/category-drawer-frozen-reference.md",
+  "passCriterion": "Look like DI CategoryDrawer, not look newly redesigned",
+  "redesignForbidden": true,
+  "sourceDemo": "LIST_demo/demos/DI-three-bubble-reveal",
+  "sourceFiles": [
+    "LIST_demo/demos/DI-three-bubble-reveal/src/ui/CategoryDrawer.tsx",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/App.tsx",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/styles.css",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/motionConfig.ts",
+    "LIST_demo/demos/DI-three-bubble-reveal/src/ui/DemoToggles.tsx"
+  ],
+  "domStructure": {
+    "hamburgerOutsideDrawerComponent": true,
+    "closeButtonInsidePanel": false,
+    "closeUi": ["hamburger morphs to ×", "scrim tap"],
+    "tree": [
+      ".ui-chrome-layer > button.hamburger",
+      "CategoryDrawer AnimatePresence",
+      "motion.button.drawer-scrim",
+      "motion.aside.drawer-panel",
+      "header.drawer-header > .drawer-eyebrow Explore + .drawer-title Category",
+      "nav.drawer-list > button.drawer-item > span.drawer-item-label"
+    ]
+  },
+  "hamburger": {
+    "position": "absolute",
+    "top": "50%",
+    "rightPx": 14,
+    "transform": "translateY(-50%)",
+    "zIndex": 32,
+    "widthPx": 52,
+    "heightPx": 52,
+    "borderRadius": "50%",
+    "border": "1px solid rgba(255, 255, 255, 0.14)",
+    "background": "rgba(12, 12, 12, 0.55)",
+    "backdropFilter": "blur(10px)",
+    "boxShadow": "0 4px 24px rgba(0, 0, 0, 0.35)",
+    "bar": { "widthPx": 18, "heightPx": 2, "gapPx": 6, "color": "rgba(255,255,255,0.88)" },
+    "closeMark": { "fontSizePx": 26, "fontWeight": 300, "text": "×" }
+  },
+  "scrim": {
+    "className": "drawer-scrim",
+    "zIndex": 10,
+    "background": "rgba(0, 0, 0, 0.22)",
+    "backdropFilter": "blur(3px)",
+    "pointerEvents": "auto",
+    "showDefault": true,
+    "motion": { "durationMs": 220, "easing": [0.32, 0, 0.58, 0.02], "opacity": [0, 1, 0] }
+  },
+  "panel": {
+    "className": "drawer-panel",
+    "widthPx": 320,
+    "zIndex": 20,
+    "position": "fixed top-0 right-0 height-100%",
+    "background": "rgba(255, 255, 255, 0.65)",
+    "color": "#141414",
+    "borderLeft": "1px solid rgba(255, 255, 255, 0.55)",
+    "boxShadow": "-8px 0 40px rgba(0, 0, 0, 0.18)",
+    "backdropFilter": "blur(18px) saturate(1.1)",
+    "justifyContent": "center",
+    "paddingBottom": "12vh"
+  },
+  "copyFrozen": {
+    "eyebrow": "Explore",
+    "title": "Category",
+    "items": [
+      { "id": "food", "label": "Food" },
+      { "id": "gift", "label": "Gift" },
+      { "id": "flower", "label": "Flower" }
+    ],
+    "doNotUseProductionLabels": ["FOOD", "GIFT"]
+  },
+  "itemLayout": {
+    "minHeightPx": 60,
+    "padding": "0 72px 0 28px",
+    "fontSizePx": 17,
+    "letterSpacingEm": 0.04,
+    "textAlign": "center",
+    "color": "rgba(0,0,0,0.72)",
+    "selectedBackground": "rgba(255,255,255,0.45)",
+    "selectedLabelBorderLeft": "2px solid rgba(0,0,0,0.45)"
+  },
+  "headerLayout": {
+    "padding": "28px 72px 20px 24px",
+    "eyebrowFontSizePx": 11,
+    "titleFontSizePx": 22,
+    "titleFontWeight": 500
+  },
+  "motion": {
+    "library": "framer-motion",
+    "easing": [0.32, 0, 0.58, 0.02],
+    "openMs": 260,
+    "closeMs": 230,
+    "initial": { "x": 12, "opacity": 0 },
+    "animate": { "x": 0, "opacity": 1 },
+    "exit": { "x": 7.2, "opacity": 0 }
+  },
+  "zIndexStack": {
+    "threeLayer": 0,
+    "drawerScrim": 10,
+    "bubbleOverlay": 15,
+    "drawerPanelAndZoomBackdrop": 20,
+    "uiChromeLayer": 30,
+    "hamburger": 32
+  },
+  "gatesWhileOpen": {
+    "listInteraction": "off",
+    "bubble": "stop and hide"
+  },
+  "diSelectBehavior": {
+    "setsSelectedCategoryId": true,
+    "closesDrawer": false,
+    "navigatesToProductDetail": false
+  },
+  "demo0820SelectBehavior": {
+    "allowedDelta": true,
+    "reason": "8/20 must show Category select → PRODUCT_DETAIL placeholder",
+    "closesDrawer": true,
+    "navigatesToProductDetail": true,
+    "visualChangeForbidden": true
+  },
+  "forbiddenDeltas": [
+    "change color / spacing / size / radius / animation / copy / structure",
+    "redesign because it looks better",
+    "replace labels with production FOOD/GIFT",
+    "add in-panel close button",
+    "move hamburger from vertical-center right",
+    "change width from 320",
+    "remove Flower item from the visual list"
+  ],
+  "allowedDeltas": [
+    "select navigates to PRODUCT_DETAIL and closes drawer",
+    "hide hamburger during IMAGE_ZOOM / PRODUCT_DETAIL",
+    "hide debug scrim toggle in review mode",
+    "data source may differ if on-screen copy matches DI",
+    "report 55in hit-target issues without silently resizing"
+  ],
+  "openQuestions": [
+    "WinTouch sticky :hover",
+    "52px hamburger / 60px items may feel small on 55in — do not change without approval",
+    "flower missing from production categories.json — keep visual item",
+    "zoom and drawer share z-index 20 — exclusive screenState required"
+  ]
+}
