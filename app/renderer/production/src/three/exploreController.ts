@@ -17,6 +17,7 @@ import type {
   FileProtocolTextureLoadResult,
   ImageZoomLoadStatus,
   ListDebugStats,
+  ListGestureMode,
   SelectedDemoCard,
 } from '../types';
 import { attachBubbleRevealShader, createRevealUniforms, type RevealUniforms } from './bubbleRevealShader';
@@ -41,8 +42,6 @@ const CAMERA_Z_EPS = 1.5;
 const FPS_LOG_MS = 2000;
 const TWO_FINGER_VERTICAL_DEAD_ZONE_PX = listConfig.twoFingerVerticalDeadZonePx;
 const TWO_FINGER_PINCH_DEAD_ZONE_PX = listConfig.twoFingerPinchDeadZonePx;
-
-type TwoFingerMode = 'undecided' | 'vertical-dolly' | 'pinch-dolly';
 
 export interface ExploreViewLayout {
   monitorId: number;
@@ -240,11 +239,13 @@ export class ExploreController {
   private pinchCentroidY = 0;
   private pinchOriginCentroidY = 0;
   private pinchOriginDistance = 0;
-  private twoFingerMode: TwoFingerMode = 'undecided';
+  private gestureMode: ListGestureMode = 'idle';
   private twoFingerVerticalArmed = false;
   private twoFingerDollyActive = false;
   private twoFingerDollyDeltaY = 0;
   private twoFingerDollyTotalY = 0;
+  private tapSuppressedByTwoFinger = false;
+  private tapSuppressedByMultiTouch = false;
   private textureOkByScheme = { file: 0, custom: 0, other: 0 };
   private textureFailByScheme = { file: 0, custom: 0, other: 0 };
   private sharedTextures = new Map<string, THREE.Texture>();
@@ -801,39 +802,69 @@ export class ExploreController {
     return (pts[0]!.lastY + pts[1]!.lastY) * 0.5;
   }
 
-  private beginPinchIfNeeded(): void {
+  private beginTwoFingerSessionIfNeeded(): void {
     if (this.pointers.size < 2) return;
-    if (!this.pinchSession) {
+    if (this.gestureMode === 'multi-touch-blocked') return;
+    if (
+      this.gestureMode !== 'two-finger-pending' &&
+      this.gestureMode !== 'two-finger-swipe-dolly' &&
+      this.gestureMode !== 'two-finger-pinch-dolly'
+    ) {
       this.pinchDistance = this.pinchDistanceBetween();
       this.pinchDelta = 0;
       this.pinchCentroidY = this.pinchCentroidYBetween();
       this.pinchOriginCentroidY = this.pinchCentroidY;
       this.pinchOriginDistance = this.pinchDistance;
-      this.twoFingerMode = 'undecided';
+      this.gestureMode = 'two-finger-pending';
       this.twoFingerVerticalArmed = false;
       this.twoFingerDollyActive = false;
+      this.pinchActive = false;
       this.twoFingerDollyDeltaY = 0;
       this.twoFingerDollyTotalY = 0;
       this.callbacks.onValidActivity?.();
     }
     this.pinchSession = true;
     this.tapSuppressedByPinch = true;
+    this.tapSuppressedByTwoFinger = true;
+  }
+
+  private enterMultiTouchBlocked(): void {
+    this.gestureMode = 'multi-touch-blocked';
+    this.pinchActive = false;
+    this.twoFingerDollyActive = false;
+    this.twoFingerVerticalArmed = false;
+    this.pinchSession = true;
+    this.tapSuppressedByPinch = true;
+    this.tapSuppressedByTwoFinger = true;
+    this.tapSuppressedByMultiTouch = true;
   }
 
   private resetPinchTracking(): void {
     this.pinchActive = false;
     this.pinchSession = false;
     this.tapSuppressedByPinch = false;
+    this.tapSuppressedByTwoFinger = false;
+    this.tapSuppressedByMultiTouch = false;
     this.pinchDistance = 0;
     this.pinchDelta = 0;
     this.pinchCentroidY = 0;
     this.pinchOriginCentroidY = 0;
     this.pinchOriginDistance = 0;
-    this.twoFingerMode = 'undecided';
+    this.gestureMode = 'idle';
     this.twoFingerVerticalArmed = false;
     this.twoFingerDollyActive = false;
     this.twoFingerDollyDeltaY = 0;
     this.twoFingerDollyTotalY = 0;
+  }
+
+  private sessionBlocksOneFinger(): boolean {
+    return (
+      this.pinchSession ||
+      this.gestureMode === 'two-finger-pending' ||
+      this.gestureMode === 'two-finger-swipe-dolly' ||
+      this.gestureMode === 'two-finger-pinch-dolly' ||
+      this.gestureMode === 'multi-touch-blocked'
+    );
   }
 
   /** independent: 出現帯はカメラ基準で world 内に畳む。sharedWall: 旧 SCENE_LAYOUT 範囲。 */
@@ -1011,6 +1042,8 @@ export class ExploreController {
     this.unbindPointer();
     this.unbindWheel();
     this.unbindShiftKeys();
+    this.pointers.clear();
+    this.resetPinchTracking();
     this.renderer?.domElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.renderer?.domElement.removeEventListener('webglcontextrestored', this.onContextRestored);
     for (const card of this.cards) {
@@ -1045,7 +1078,8 @@ export class ExploreController {
     el.addEventListener('pointerdown', this.onPointerDown);
     el.addEventListener('pointermove', this.onPointerMove);
     el.addEventListener('pointerup', this.onPointerUp);
-    el.addEventListener('pointercancel', this.onPointerUp);
+    el.addEventListener('pointercancel', this.onPointerCancel);
+    el.addEventListener('lostpointercapture', this.onLostPointerCapture);
     el.addEventListener('pointerleave', this.onPointerLeave);
   }
 
@@ -1055,7 +1089,8 @@ export class ExploreController {
     el.removeEventListener('pointerdown', this.onPointerDown);
     el.removeEventListener('pointermove', this.onPointerMove);
     el.removeEventListener('pointerup', this.onPointerUp);
-    el.removeEventListener('pointercancel', this.onPointerUp);
+    el.removeEventListener('pointercancel', this.onPointerCancel);
+    el.removeEventListener('lostpointercapture', this.onLostPointerCapture);
     el.removeEventListener('pointerleave', this.onPointerLeave);
   }
 
@@ -1089,11 +1124,15 @@ export class ExploreController {
 
   private onWindowBlur = (): void => {
     this.shiftHeld = false;
+    this.pointers.clear();
+    this.resetPinchTracking();
+    this.bubbleContactActive = false;
   };
 
   private onPointerDown = (e: PointerEvent): void => {
     this.updateBubbleFromPointer(e, { show: true, contact: true });
     if (!this.interactionEnabled) return;
+    e.preventDefault();
     this.callbacks.onValidActivity?.();
     try {
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -1109,8 +1148,50 @@ export class ExploreController {
       startTime: performance.now(),
       dragging: false,
     });
-    this.beginPinchIfNeeded();
+    if (this.gestureMode === 'multi-touch-blocked' || this.pointers.size >= 3) {
+      this.enterMultiTouchBlocked();
+      return;
+    }
+    if (this.pointers.size >= 2) {
+      this.beginTwoFingerSessionIfNeeded();
+      return;
+    }
+    if (this.gestureMode === 'idle') this.gestureMode = 'one-finger';
   };
+
+  private applyTwoFingerDollyFromMove(): void {
+    const dist = this.pinchDistanceBetween();
+    const pinchDelta = this.pinchDistance > 0 ? dist - this.pinchDistance : 0;
+    const centroidY = this.pinchCentroidYBetween();
+    const deltaY = centroidY - this.pinchCentroidY;
+    this.pinchDelta = pinchDelta;
+    this.twoFingerDollyDeltaY = deltaY;
+    this.twoFingerDollyTotalY = centroidY - this.pinchOriginCentroidY;
+    const sessionVert = Math.abs(this.twoFingerDollyTotalY);
+    const sessionPinch = Math.abs(dist - this.pinchOriginDistance);
+
+    if (this.gestureMode === 'two-finger-pending') {
+      if (sessionVert > TWO_FINGER_VERTICAL_DEAD_ZONE_PX) {
+        this.gestureMode = 'two-finger-swipe-dolly';
+        this.twoFingerVerticalArmed = true;
+        this.applyDollyImpulse(this.twoFingerDollyTotalY, 'two-finger-vertical');
+      } else if (sessionPinch > TWO_FINGER_PINCH_DEAD_ZONE_PX) {
+        this.gestureMode = 'two-finger-pinch-dolly';
+        this.applyDollyImpulse(dist - this.pinchOriginDistance, 'pinch');
+      }
+    } else if (this.gestureMode === 'two-finger-swipe-dolly') {
+      if (Math.abs(deltaY) >= 0.5) {
+        this.applyDollyImpulse(deltaY, 'two-finger-vertical');
+      }
+    } else if (this.gestureMode === 'two-finger-pinch-dolly' && Math.abs(pinchDelta) > 1.5) {
+      this.applyDollyImpulse(pinchDelta, 'pinch');
+    }
+
+    this.pinchDistance = dist;
+    this.pinchCentroidY = centroidY;
+    this.pinchActive = this.gestureMode === 'two-finger-pinch-dolly';
+    this.twoFingerDollyActive = this.gestureMode === 'two-finger-swipe-dolly';
+  }
 
   private onPointerMove = (e: PointerEvent): void => {
     if (this.isBubbleAllowed()) {
@@ -1121,6 +1202,7 @@ export class ExploreController {
     if (!this.interactionEnabled) return;
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
+    e.preventDefault();
     const dx = e.clientX - p.lastX;
     const dy = e.clientY - p.lastY;
     const totalMove = Math.hypot(e.clientX - p.startX, e.clientY - p.startY);
@@ -1131,43 +1213,17 @@ export class ExploreController {
     p.lastX = e.clientX;
     p.lastY = e.clientY;
 
-    if (this.pointers.size >= 2) {
-      this.beginPinchIfNeeded();
-      const dist = this.pinchDistanceBetween();
-      const pinchDelta = this.pinchDistance > 0 ? dist - this.pinchDistance : 0;
-      const centroidY = this.pinchCentroidYBetween();
-      const deltaY = centroidY - this.pinchCentroidY;
-      this.pinchDelta = pinchDelta;
-      this.twoFingerDollyDeltaY = deltaY;
-      this.twoFingerDollyTotalY = centroidY - this.pinchOriginCentroidY;
-      const sessionVert = Math.abs(this.twoFingerDollyTotalY);
-      const sessionPinch = Math.abs(dist - this.pinchOriginDistance);
-
-      if (this.twoFingerMode === 'undecided') {
-        if (sessionVert > TWO_FINGER_VERTICAL_DEAD_ZONE_PX) {
-          this.twoFingerMode = 'vertical-dolly';
-          this.twoFingerVerticalArmed = true;
-          this.applyDollyImpulse(this.twoFingerDollyTotalY, 'two-finger-vertical');
-        } else if (sessionPinch > TWO_FINGER_PINCH_DEAD_ZONE_PX) {
-          this.twoFingerMode = 'pinch-dolly';
-          this.applyDollyImpulse(dist - this.pinchOriginDistance, 'pinch');
-        }
-      } else if (this.twoFingerMode === 'vertical-dolly') {
-        if (Math.abs(deltaY) >= 0.5) {
-          this.applyDollyImpulse(deltaY, 'two-finger-vertical');
-        }
-      } else if (Math.abs(pinchDelta) > 1.5) {
-        this.applyDollyImpulse(pinchDelta, 'pinch');
-      }
-
-      this.pinchDistance = dist;
-      this.pinchCentroidY = centroidY;
-      this.pinchActive = this.twoFingerMode === 'pinch-dolly';
-      this.twoFingerDollyActive = this.twoFingerMode === 'vertical-dolly';
+    if (this.gestureMode === 'multi-touch-blocked' || this.pointers.size >= 3) {
+      this.enterMultiTouchBlocked();
       return;
     }
 
-    if (p.dragging && this.pointers.size === 1 && !this.pinchSession) {
+    if (this.sessionBlocksOneFinger()) {
+      if (this.pointers.size >= 2) this.applyTwoFingerDollyFromMove();
+      return;
+    }
+
+    if (p.dragging && this.pointers.size === 1 && this.gestureMode === 'one-finger') {
       const nextX = this.targetCameraX - dx * CAMERA_CONFIG.dragSensitivity;
       const nextY = this.targetCameraY + dy * CAMERA_CONFIG.dragSensitivity;
       if (this.world.mode === 'independent') {
@@ -1181,9 +1237,15 @@ export class ExploreController {
     }
   };
 
-  private onPointerUp = (e: PointerEvent): void => {
+  private finishPointer(e: PointerEvent, allowTap: boolean): void {
     const p = this.pointers.get(e.pointerId);
-    const suppressTap = this.pinchSession || this.tapSuppressedByPinch;
+    const modeAtUp = this.gestureMode;
+    const suppressTap =
+      !allowTap ||
+      this.sessionBlocksOneFinger() ||
+      this.tapSuppressedByPinch ||
+      this.tapSuppressedByTwoFinger ||
+      this.tapSuppressedByMultiTouch;
     this.pointers.delete(e.pointerId);
     this.bubbleContactActive = this.pointers.size > 0;
     if (this.pointers.size === 0 && this.bubbleVisible) this.scheduleHideBubble();
@@ -1196,11 +1258,7 @@ export class ExploreController {
       this.pinchDistance = this.pinchDistanceBetween();
     }
     if (this.pointers.size === 0) {
-      this.pinchSession = false;
-      this.pinchDistance = 0;
-      this.twoFingerMode = 'undecided';
-      this.twoFingerVerticalArmed = false;
-      this.twoFingerDollyTotalY = 0;
+      this.resetPinchTracking();
     }
     if (!p) return;
     const duration = performance.now() - p.startTime;
@@ -1208,15 +1266,29 @@ export class ExploreController {
     const wasTap =
       this.interactionEnabled &&
       !suppressTap &&
+      modeAtUp === 'one-finger' &&
       !p.dragging &&
       move <= listConfig.tapMaxMovePx &&
       duration <= listConfig.tapMaxDurationMs;
-    if (this.pointers.size === 0) this.tapSuppressedByPinch = false;
     if (wasTap) this.handleTap(e.clientX, e.clientY);
+  }
+
+  private onPointerUp = (e: PointerEvent): void => {
+    this.finishPointer(e, true);
+  };
+
+  private onPointerCancel = (e: PointerEvent): void => {
+    this.finishPointer(e, false);
+  };
+
+  private onLostPointerCapture = (e: PointerEvent): void => {
+    if (this.pointers.has(e.pointerId)) this.finishPointer(e, false);
   };
 
   private onPointerLeave = (e: PointerEvent): void => {
-    if (this.pointers.has(e.pointerId)) this.onPointerUp(e);
+    if (this.pointers.has(e.pointerId) && e.pointerType !== 'touch') {
+      this.finishPointer(e, false);
+    }
     if (this.pointers.size === 0) {
       this.bubbleContactActive = false;
       this.scheduleHideBubble();
@@ -1506,6 +1578,7 @@ export class ExploreController {
       dollyImpulseScale: runtimeConfig.cameraDollySpeed,
       pinchActive: this.pinchActive,
       activePointerCount: this.pointers.size,
+      activePointerIds: [...this.pointers.keys()],
       pinchDistance: this.pinchDistance,
       pinchDelta: this.pinchDelta,
       pinchDollyScale: runtimeConfig.pinchDollyScale,
@@ -1513,7 +1586,16 @@ export class ExploreController {
       twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
       twoFingerDollyTotalY: this.twoFingerDollyTotalY,
       twoFingerDollyDeadZonePx: TWO_FINGER_VERTICAL_DEAD_ZONE_PX,
+      twoFingerDollyMaxDeltaPx: listConfig.twoFingerDollyMaxDeltaPx,
       twoFingerDollyScale: listConfig.twoFingerDollyScale,
+      gestureMode: this.gestureMode,
+      oneFingerPanActive:
+        this.gestureMode === 'one-finger' && [...this.pointers.values()].some((row) => row.dragging),
+      multiTouchBlocked: this.gestureMode === 'multi-touch-blocked',
+      tapSuppressed:
+        this.tapSuppressedByPinch || this.tapSuppressedByTwoFinger || this.tapSuppressedByMultiTouch,
+      tapSuppressedByTwoFinger: this.tapSuppressedByTwoFinger,
+      tapSuppressedByMultiTouch: this.tapSuppressedByMultiTouch,
       lastDollyInput: this.lastDollyInput,
       tapSuppressedByPinch: this.tapSuppressedByPinch,
       selectedInstanceId: this.selectedInstanceId,

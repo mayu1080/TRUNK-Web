@@ -27,7 +27,7 @@ body,
   overflow: hidden;
   contain: layout paint size;
   isolation: isolate;
-  touch-action: manipulation;
+  touch-action: none;
   --chrome-fab-right: 14px;
   --chrome-fab-size: 52px;
   --drawer-width: min(320px, 100%);
@@ -173,6 +173,7 @@ button {
   z-index: 0;
   overflow: hidden;
   contain: paint;
+  touch-action: none;
 }
 
 .three-canvas {
@@ -993,6 +994,7 @@ button {
   z-index: 30;
   max-height: 46%;
   overflow: auto;
+  touch-action: pan-y;
 }
 
 .debug-panel[hidden] {

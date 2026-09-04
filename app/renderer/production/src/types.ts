@@ -38,6 +38,14 @@ export type DollyWheelMode = 'normal' | 'dolly-cruise';
 
 export type DollyInputSource = 'wheel' | 'shift-wheel' | 'pinch' | 'two-finger-vertical' | 'none';
 
+export type ListGestureMode =
+  | 'idle'
+  | 'one-finger'
+  | 'two-finger-pending'
+  | 'two-finger-swipe-dolly'
+  | 'two-finger-pinch-dolly'
+  | 'multi-touch-blocked';
+
 export interface BubbleRuntimeState {
   enabled: boolean;
   visible: boolean;
@@ -138,7 +146,15 @@ export interface ListDebugStats {
   twoFingerDollyDeltaY: number;
   twoFingerDollyTotalY: number;
   twoFingerDollyDeadZonePx: number;
+  twoFingerDollyMaxDeltaPx: number;
   twoFingerDollyScale: number;
+  gestureMode: ListGestureMode;
+  oneFingerPanActive: boolean;
+  multiTouchBlocked: boolean;
+  activePointerIds: number[];
+  tapSuppressed: boolean;
+  tapSuppressedByTwoFinger: boolean;
+  tapSuppressedByMultiTouch: boolean;
   lastDollyInput: DollyInputSource;
   tapSuppressedByPinch: boolean;
   selectedInstanceId: string | null;

@@ -12,6 +12,7 @@
       background: #101114;
       color: #f3f1ea;
       padding: 20px 22px 28px;
+      touch-action: none;
     }
     h1 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
     .sub { opacity: 0.7; font-size: 12px; margin-bottom: 16px; }
@@ -36,7 +37,8 @@
 </head>
 <body>
   <h1>TRUNK 管理画面</h1>
-  <p class="sub">認識しているディスプレイです。本番 content window は 4 枚だけ。この窓は 5 枚目の本番画面ではありません。</p>
+  <p class="sub">認識しているディスプレイです。本番 content window は 4 枚だけ。この窓は 5 枚目の本番画面ではありません。タッチはこの窓で消費し、背面へ通しません。マウス／キーボードは使えます。</p>
+  <p class="sub" id="touch-debug">adminTouchBlocked: 0　lastPointerType: —</p>
   <div class="row" id="summary"></div>
   <h2 style="font-size:15px;margin:0 0 6px">OS ディスプレイ</h2>
   <table>
@@ -125,6 +127,38 @@
       api.getStatus().then(render).catch(function () { render(null); });
       api.onChanged(render);
     }
+
+    var adminTouchBlocked = 0;
+    var lastPointerType = '—';
+    var touchDebugEl = document.getElementById('touch-debug');
+    function paintTouchDebug() {
+      if (!touchDebugEl) return;
+      touchDebugEl.textContent =
+        'adminTouchBlocked: ' + adminTouchBlocked +
+        '　lastPointerType: ' + lastPointerType;
+    }
+    function consumeAdminTouch(event) {
+      var isTouch = event.pointerType === 'touch' || (event.type && event.type.indexOf('touch') === 0);
+      if (!isTouch) {
+        if (event.pointerType) lastPointerType = event.pointerType;
+        paintTouchDebug();
+        return;
+      }
+      lastPointerType = 'touch';
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      adminTouchBlocked += 1;
+      paintTouchDebug();
+    }
+    document.addEventListener('pointerdown', consumeAdminTouch, true);
+    document.addEventListener('pointermove', consumeAdminTouch, true);
+    document.addEventListener('pointerup', consumeAdminTouch, true);
+    document.addEventListener('pointercancel', consumeAdminTouch, true);
+    document.addEventListener('touchstart', consumeAdminTouch, { capture: true, passive: false });
+    document.addEventListener('touchmove', consumeAdminTouch, { capture: true, passive: false });
+    document.addEventListener('touchend', consumeAdminTouch, { capture: true, passive: false });
+    document.addEventListener('touchcancel', consumeAdminTouch, { capture: true, passive: false });
   </script>
 </body>
 </html>
