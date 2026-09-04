@@ -1029,6 +1029,9 @@ export function App() {
                   listStats.cameraPanDebug.length
                     ? listStats.cameraPanDebug.map((row, index) => `camWrite[${index}]: ${row}`).join('\n')
                     : 'camWrite: (none this session — debug mode only, ring of 8)',
+                  listStats.bubbleActionDebug.length
+                    ? listStats.bubbleActionDebug.map((row, index) => `bubbleAction[${index}]: ${row}`).join('\n')
+                    : 'bubbleAction: (none this session — debug mode only, ring of 8)',
                   `tapSuppressed: ${listStats.tapSuppressed}  byTwoFinger: ${listStats.tapSuppressedByTwoFinger}  byMultiTouch: ${listStats.tapSuppressedByMultiTouch}  byPinch: ${listStats.tapSuppressedByPinch}`,
                   `twoFingerDollyActive: ${listStats.twoFingerDollyActive}  twoFingerDollyDeltaY: ${listStats.twoFingerDollyDeltaY.toFixed(1)}  twoFingerDollyTotalY: ${listStats.twoFingerDollyTotalY.toFixed(1)}`,
                   `twoFingerDollyDeadZonePx: ${listStats.twoFingerDollyDeadZonePx}  twoFingerDollyMaxDeltaPx: ${listStats.twoFingerDollyMaxDeltaPx}  twoFingerDollyScale: ${listStats.twoFingerDollyScale}`,
@@ -1202,6 +1205,7 @@ export function App() {
                     ownerDisplayId: listStats.ownerDisplayId,
                     lastCameraUpdateReason: listStats.lastCameraUpdateReason,
                     cameraPanDebug: listStats.cameraPanDebug,
+                    bubbleActionDebug: listStats.bubbleActionDebug,
                     twoFingerDollyActive: listStats.twoFingerDollyActive,
                     twoFingerDollyDeltaY: Number(listStats.twoFingerDollyDeltaY.toFixed(1)),
                     twoFingerDollyTotalY: Number(listStats.twoFingerDollyTotalY.toFixed(1)),

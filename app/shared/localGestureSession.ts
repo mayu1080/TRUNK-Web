@@ -5,6 +5,7 @@
  */
 
 export const CAMERA_PAN_DEBUG_RING = 8;
+export const BUBBLE_ACTION_DEBUG_RING = 8;
 export const STALE_START_REPLAY_PX = 2;
 export const STALE_START_REPLAY_FROM_LAST_PX = 8;
 export const VIEWPORT_EVENT_MARGIN_PX = 80;
@@ -142,6 +143,59 @@ export function localBubbleFingerGate(effectiveFingerCount: number): 'show' | 'h
   if (effectiveFingerCount >= 2) return 'hide-multi';
   if (effectiveFingerCount === 1) return 'show';
   return 'release';
+}
+
+export type BubbleActionReason = 'show-one-finger' | 'hide-multi' | 'hide-timer' | 'hide-disallowed';
+
+export interface BubbleActionDebugSample {
+  timestamp: number;
+  monitorId: number;
+  action: BubbleActionReason;
+  localFingerCount: number;
+  clientX: number;
+  clientY: number;
+}
+
+export function formatBubbleActionDebugSample(sample: BubbleActionDebugSample): string {
+  const t = new Date(sample.timestamp).toISOString().slice(11, 23);
+  return [
+    `${t} M${sample.monitorId} ${sample.action}`,
+    `fingers=${sample.localFingerCount}`,
+    `client=${Math.round(sample.clientX)},${Math.round(sample.clientY)}`,
+  ].join(' ');
+}
+
+/**
+ * Cheap four-window simulation: each monitor gates Bubble on its own finger count.
+ * M1+M3 one-finger → two visible (not a global 2-finger hide).
+ * M1–M4 one-finger → count 4. M3 two-finger hides only M3; M1 hide timer stays armed.
+ */
+export function simulateFourMonitorBubbleIndependence(): {
+  m1AndM3BothVisible: boolean;
+  allFourVisibleCount: number;
+  m3TwoFingerHidesOnlyM3: boolean;
+} {
+  type Win = { monitorId: number; localFingerCount: number; hideTimerArmed: boolean };
+  const windows: Win[] = [
+    { monitorId: 1, localFingerCount: 1, hideTimerArmed: true },
+    { monitorId: 2, localFingerCount: 1, hideTimerArmed: true },
+    { monitorId: 3, localFingerCount: 1, hideTimerArmed: true },
+    { monitorId: 4, localFingerCount: 1, hideTimerArmed: true },
+  ];
+  const visible = (w: Win) => localBubbleFingerGate(w.localFingerCount) === 'show';
+  const m1AndM3BothVisible = visible(windows[0]!) && visible(windows[2]!);
+  const allFourVisibleCount = windows.filter(visible).length;
+
+  windows[2]!.localFingerCount = 2;
+  windows[2]!.hideTimerArmed = false;
+  const m3TwoFingerHidesOnlyM3 =
+    visible(windows[0]!) &&
+    windows[0]!.hideTimerArmed &&
+    localBubbleFingerGate(windows[2]!.localFingerCount) === 'hide-multi' &&
+    visible(windows[1]!) &&
+    visible(windows[3]!);
+
+  return { m1AndM3BothVisible, allFourVisibleCount, m3TwoFingerHidesOnlyM3 };
 }
 
 export function formatCameraPanDebugSample(sample: CameraPanDebugSample): string {

@@ -45,7 +45,9 @@ mustContain(session, [
   'stale-start-replay-ignored',
   'localBubbleFingerGate',
   'simulateTwoMonitorPanIsolation',
+  'simulateFourMonitorBubbleIndependence',
   'CAMERA_PAN_DEBUG_RING = 8',
+  'BUBBLE_ACTION_DEBUG_RING = 8',
 ]);
 mustContain(controller, [
   'interactionSessionId',
@@ -55,6 +57,9 @@ mustContain(controller, [
   'stale-start-replay-ignored',
   'localBubbleFingerGate',
   'CAMERA_PAN_DEBUG_RING',
+  'BUBBLE_ACTION_DEBUG_RING',
+  'recordBubbleAction',
+  'private hideBubbleTimer',
   'ownerMonitorId',
   'ownerWindowId',
   'isDuplicateLocalPointerDown',
@@ -73,6 +78,7 @@ mustContain(appTsx, [
   'if (!debugModeRef.current) return',
   'interactionSessionId',
   'cameraPanDebug',
+  'bubbleActionDebug',
 ]);
 mustContain(mainTs, [
   'activityOnly',
@@ -95,6 +101,7 @@ mustNotContain(controller, [
   'getAllWindows().forEach',
   'webContents.sendInputEvent',
   'globalThis.pointers',
+  'activeBubbleCount',
 ]);
 mustNotContain(appTsx, [
   'sendInputEvent',
@@ -110,6 +117,17 @@ if (!/private interactionSessionId/.test(controllerText)) {
 }
 if (controllerText.includes('this.pointers.clear();\n    this.nativeTouchCount = 0;\n    this.resetPinchTracking();\n    this.bubbleContactActive = false;')) {
   fail('onWindowBlur must not clear local touch pointers');
+}
+
+const appText = fs.readFileSync(appTsx, 'utf8');
+if (/if\s*\([^)]*activeBubbleCount/.test(appText)) {
+  fail('activeBubbleCount must not gate bubble visibility');
+}
+if (/bubbleVisible\s*=\s*.*activeBubbleCount/.test(appText)) {
+  fail('IPC aggregate must not re-control bubble visibility');
+}
+if (!/onBubbleAggregate[\s\S]*if \(!debugModeRef\.current\) return/.test(appText)) {
+  fail('onBubbleAggregate must stay debug-HUD only');
 }
 
 const panBlock = controllerText.slice(
@@ -143,13 +161,28 @@ const distSession = path.join(app, 'dist', 'shared', 'localGestureSession.js');
 if (!fs.existsSync(distSession)) {
   fail('run npm run build first so dist/shared/localGestureSession.js exists');
 } else {
-  const { simulateTwoMonitorPanIsolation, localBubbleFingerGate, eventBelongsToWindow } = require(distSession);
+  const {
+    simulateTwoMonitorPanIsolation,
+    simulateFourMonitorBubbleIndependence,
+    localBubbleFingerGate,
+    eventBelongsToWindow,
+  } = require(distSession);
   const sim = simulateTwoMonitorPanIsolation();
   if (sim.m1Moved) {
     fail('M3 down / stale start replay must not pan M1 while M1 finger is held still');
   }
   if (!sim.m3Moved) {
     fail('M3 local 1-finger drag must still pan M3');
+  }
+  const bubbles = simulateFourMonitorBubbleIndependence();
+  if (!bubbles.m1AndM3BothVisible) {
+    fail('M1+M3 local 1-finger must both show bubbles (not a global 2-finger hide)');
+  }
+  if (bubbles.allFourVisibleCount !== 4) {
+    fail('M1–M4 local 1-finger must yield 4 independent bubbles');
+  }
+  if (!bubbles.m3TwoFingerHidesOnlyM3) {
+    fail('M3 2-finger must hide only M3; M1 timer must stay armed');
   }
   if (localBubbleFingerGate(1) !== 'show' || localBubbleFingerGate(2) !== 'hide-multi' || localBubbleFingerGate(0) !== 'release') {
     fail('bubble gate must be local 1-finger show / 2+ hide / 0 release');

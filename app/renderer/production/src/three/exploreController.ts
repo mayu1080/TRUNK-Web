@@ -36,12 +36,16 @@ import {
   type ListWorld,
 } from './sceneLayout';
 import {
+  BUBBLE_ACTION_DEBUG_RING,
   CAMERA_PAN_DEBUG_RING,
   decideOneFingerPanMove,
   eventBelongsToWindow,
+  formatBubbleActionDebugSample,
   formatCameraPanDebugSample,
   isDuplicateLocalPointerDown,
   localBubbleFingerGate,
+  type BubbleActionDebugSample,
+  type BubbleActionReason,
   type CameraPanDebugSample,
   type CameraUpdateReason,
 } from '@trunk-shared/localGestureSession';
@@ -270,6 +274,7 @@ export class ExploreController {
   private ownerWindowId: number | null = null;
   private ownerDisplayId: number | null = null;
   private cameraPanDebug: CameraPanDebugSample[] = [];
+  private bubbleActionDebug: BubbleActionDebugSample[] = [];
   private lastCameraUpdateReason: CameraUpdateReason | 'none' = 'none';
   private textureOkByScheme = { file: 0, custom: 0, other: 0 };
   private textureFailByScheme = { file: 0, custom: 0, other: 0 };
@@ -888,6 +893,19 @@ export class ExploreController {
     this.cameraPanDebug = [...this.cameraPanDebug, sample].slice(-CAMERA_PAN_DEBUG_RING);
   }
 
+  private recordBubbleAction(action: BubbleActionReason, clientX = this.bubbleTargetX, clientY = this.bubbleTargetY): void {
+    if (!this.isCameraPanDebugEnabled()) return;
+    const sample: BubbleActionDebugSample = {
+      timestamp: Date.now(),
+      monitorId: this.layout.monitorId,
+      action,
+      localFingerCount: this.effectiveFingerCount(),
+      clientX,
+      clientY,
+    };
+    this.bubbleActionDebug = [...this.bubbleActionDebug, sample].slice(-BUBBLE_ACTION_DEBUG_RING);
+  }
+
   private toPointerRecord(p: PointerState) {
     return {
       id: p.id,
@@ -946,6 +964,7 @@ export class ExploreController {
   }
 
   private hideBubbleForMultiTouch(): void {
+    const wasVisible = this.bubbleVisible;
     this.bubbleVisible = false;
     this.revealActive = false;
     this.bubbleHasTarget = false;
@@ -954,6 +973,7 @@ export class ExploreController {
       clearTimeout(this.hideBubbleTimer);
       this.hideBubbleTimer = null;
     }
+    if (wasVisible) this.recordBubbleAction('hide-multi');
   }
 
   private resetPinchTracking(): void {
@@ -1087,7 +1107,9 @@ export class ExploreController {
     this.bubbleTargetY = clientY;
     this.bubbleHasTarget = true;
     this.bubblePointerType = pointerType;
+    const wasVisible = this.bubbleVisible;
     this.bubbleVisible = true;
+    if (!wasVisible) this.recordBubbleAction('show-one-finger', clientX, clientY);
     if (!this.bubbleScreenX && !this.bubbleScreenY) {
       this.bubbleScreenX = clientX;
       this.bubbleScreenY = clientY;
@@ -1101,6 +1123,7 @@ export class ExploreController {
       this.bubbleVisible = false;
       this.revealActive = false;
       this.bubbleContactActive = false;
+      this.recordBubbleAction('hide-timer');
     }, listConfig.bubbleHideDelayMs);
   }
 
@@ -1121,6 +1144,7 @@ export class ExploreController {
   private updateBubbleFollow(): void {
     if (!this.bubbleHasTarget || !this.isBubbleAllowed()) {
       if (!this.isBubbleAllowed()) {
+        if (this.bubbleVisible) this.recordBubbleAction('hide-disallowed');
         this.bubbleVisible = false;
         this.revealActive = false;
       }
@@ -1639,6 +1663,7 @@ export class ExploreController {
       this.cruiseVelocityZ = 0;
       this.lastDollyImpulse = 0;
       this.resetPinchTracking();
+      if (this.bubbleVisible) this.recordBubbleAction('hide-disallowed');
       this.bubbleVisible = false;
       this.revealActive = false;
       this.bubbleHasTarget = false;
@@ -1715,6 +1740,7 @@ export class ExploreController {
       ownerDisplayId: this.ownerDisplayId,
       lastCameraUpdateReason: this.lastCameraUpdateReason,
       cameraPanDebug: this.cameraPanDebug.map(formatCameraPanDebugSample),
+      bubbleActionDebug: this.bubbleActionDebug.map(formatBubbleActionDebugSample),
       twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
       twoFingerDollyTotalY: this.twoFingerDollyTotalY,
       wheelMode: this.wheelMode,
@@ -1876,6 +1902,7 @@ export class ExploreController {
       ownerDisplayId: this.ownerDisplayId,
       lastCameraUpdateReason: this.lastCameraUpdateReason,
       cameraPanDebug: this.cameraPanDebug.map(formatCameraPanDebugSample),
+      bubbleActionDebug: this.bubbleActionDebug.map(formatBubbleActionDebugSample),
       tapSuppressed:
         this.tapSuppressedByPinch || this.tapSuppressedByTwoFinger || this.tapSuppressedByMultiTouch,
       tapSuppressedByTwoFinger: this.tapSuppressedByTwoFinger,

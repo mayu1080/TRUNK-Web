@@ -162,6 +162,7 @@ export interface ListDebugStats {
   ownerDisplayId: number | null;
   lastCameraUpdateReason: string;
   cameraPanDebug: string[];
+  bubbleActionDebug: string[];
   tapSuppressed: boolean;
   tapSuppressedByTwoFinger: boolean;
   tapSuppressedByMultiTouch: boolean;
