@@ -302,6 +302,8 @@ function attachWindow(
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // AD_IDLE 分割 mp4 を起動直後から音声付きで再生する。
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 

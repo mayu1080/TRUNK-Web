@@ -378,6 +378,7 @@ export function App() {
     };
     el.addEventListener('ended', onEnded);
     el.loop = adsLoop;
+    el.muted = snapshot.globalScene !== 'AD_IDLE';
     if (!show) {
       el.hidden = true;
       el.removeAttribute('src');
@@ -391,7 +392,6 @@ export function App() {
       return () => el.removeEventListener('ended', onEnded);
     }
     lastVideoKeyRef.current = key;
-    el.muted = true;
     el.src = video.track.url!;
     const elapsedMs = Math.max(0, Date.now() - video.startedAtMs);
     const applyClock = () => {
@@ -571,7 +571,7 @@ export function App() {
       </header>
       ) : null}
 
-      <video ref={videoRef} className="scene-video" hidden playsInline muted />
+      <video ref={videoRef} className="scene-video" hidden playsInline />
 
       {listMounted && exploreLayout ? (
         <div className={`list-stage${listVisualReady ? '' : ' is-preload'}`}>
