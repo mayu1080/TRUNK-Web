@@ -64,6 +64,7 @@ mustContain(path.join(src, 'App.tsx'), [
   'video.ended',
   'collectViewportDebug',
   'viewport overflow',
+  "el.addEventListener('pause', resume)",
 ]);
 mustContain(path.join(src, 'viewportDebug.ts'), [
   'innerWidth',
@@ -74,6 +75,10 @@ mustContain(path.join(src, 'viewportDebug.ts'), [
 ]);
 mustContain(path.join(__dirname, '..', 'electron', 'production', 'videoPlaylist.ts'), [
   "kind === 'ads' ? raw?.loop !== false : false",
+]);
+mustContain(path.join(__dirname, '..', 'electron', 'content', 'contentProtocol.ts'), [
+  "'Accept-Ranges': 'bytes'",
+  'status: 206',
 ]);
 if (!playlist.includes("kind === 'ads' && mediaMs != null")) {
   fail('ads playlist should use media duration for loop sync');

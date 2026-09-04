@@ -38,7 +38,7 @@ mustContain(path.join(__dirname, '..', 'electron', 'content', 'brandFonts.ts'), 
   'weight: inferred.weight',
 ]);
 mustContain(path.join(__dirname, '..', 'electron', 'content', 'contentProtocol.ts'), [
-  "ext === '.otf'",
+  "case '.otf'",
   'font/otf',
 ]);
 mustContain(path.join(src, 'loadBrandFonts.ts'), [

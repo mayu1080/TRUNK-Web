@@ -413,6 +413,64 @@ export function App() {
     return () => el.removeEventListener('ended', onEnded);
   }, [dispatch, snapshot]);
 
+  // Native HTML loop seeks to 0; without byte-range on trunk-content:// that seek
+  // stalls at HAVE_METADATA. Resume on pause/canplay, and reload if still stuck.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || snapshot?.globalScene !== 'AD_IDLE' || !snapshot.video.loop) return;
+    let reloads = 0;
+    let hadPlayback = false;
+    let stuckSince: number | null = null;
+    const shouldPlay = () => {
+      const current = snapshotRef.current;
+      return (
+        current?.globalScene === 'AD_IDLE' &&
+        Boolean(current.video.loop) &&
+        !el.hidden &&
+        Boolean(el.getAttribute('src') || el.currentSrc)
+      );
+    };
+    const resume = () => {
+      if (!shouldPlay()) return;
+      if (!el.paused && !el.ended && el.readyState >= 2) return;
+      void el.play().catch(() => {});
+    };
+    const watchdog = window.setInterval(() => {
+      if (!shouldPlay()) return;
+      if (!el.paused && el.readyState >= 3) {
+        hadPlayback = true;
+        stuckSince = null;
+        reloads = 0;
+        return;
+      }
+      if (el.readyState >= 2) {
+        stuckSince = null;
+        resume();
+        return;
+      }
+      if (!hadPlayback) return;
+      if (stuckSince == null) stuckSince = Date.now();
+      if (Date.now() - stuckSince < 2000) return;
+      const url = snapshotRef.current?.video.track.url;
+      if (!url || reloads >= 3) return;
+      reloads += 1;
+      stuckSince = Date.now();
+      el.src = url;
+      el.loop = true;
+      el.addEventListener('canplay', resume, { once: true });
+      el.load();
+    }, 1500);
+    el.addEventListener('pause', resume);
+    el.addEventListener('canplay', resume);
+    el.addEventListener('waiting', resume);
+    return () => {
+      el.removeEventListener('pause', resume);
+      el.removeEventListener('canplay', resume);
+      el.removeEventListener('waiting', resume);
+      window.clearInterval(watchdog);
+    };
+  }, [snapshot?.globalScene, snapshot?.video.loop, videoElementMounted]);
+
   useEffect(() => {
     const sample = () => {
       const dump = collectViewportDebug({
