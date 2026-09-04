@@ -6,7 +6,8 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Starting canonical production (OS display.bounds, preview env cleared)...
+if not defined TRUNK_PRODUCTION_IDLE_SECONDS set TRUNK_PRODUCTION_IDLE_SECONDS=120
+echo Starting canonical production (OS display.bounds, preview env cleared, idle 120s)...
 call npm run start:production:site
 echo.
 pause

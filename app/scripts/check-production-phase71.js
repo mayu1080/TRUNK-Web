@@ -96,6 +96,7 @@ mustContain(path.join(app, 'scripts', 'start-production-site.js'), [
   'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
   'delete process.env[key]',
   'TRUNK_SITE_AUTO_BOUNDS',
+  "TRUNK_PRODUCTION_IDLE_SECONDS = '120'",
 ]);
 
 // --- ads split mp4 ----------------------------------------------------------

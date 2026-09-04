@@ -51,15 +51,11 @@ export function resolveIdleTimeoutConfig(isPackaged: boolean): IdleTimeoutConfig
 }
 
 /**
- * Production shell の全体 Non-Touch。
- * packaged: 120秒固定。dev: TRUNK_PRODUCTION_IDLE_SECONDS、なければ TRUNK_IDLE_TIMEOUT_SECONDS、なければ 20秒。
- * 0820 の resolveIdleTimeoutConfig（packaged 600秒）は変更しない。
+ * Production shell の全体 Non-Touch → AD_IDLE。
+ * 既定は 120秒（packaged / unpackaged とも）。0820 の 600秒は resolveIdleTimeoutConfig 側。
+ * 短縮テストだけ TRUNK_PRODUCTION_IDLE_SECONDS（なければ TRUNK_IDLE_TIMEOUT_SECONDS）。
  */
-export function resolveProductionShellIdleTimeout(isPackaged: boolean): IdleTimeoutConfig {
-  if (isPackaged) {
-    return { seconds: PRODUCTION_SHELL_IDLE_TIMEOUT_SECONDS, source: 'production' };
-  }
-
+export function resolveProductionShellIdleTimeout(_isPackaged: boolean): IdleTimeoutConfig {
   const override = process.env.TRUNK_PRODUCTION_IDLE_SECONDS ?? process.env.TRUNK_IDLE_TIMEOUT_SECONDS;
   if (override !== undefined && override.trim() !== '') {
     const parsed = Number(override.trim());
@@ -68,5 +64,5 @@ export function resolveProductionShellIdleTimeout(isPackaged: boolean): IdleTime
     }
   }
 
-  return { seconds: DEVELOPMENT_IDLE_TIMEOUT_SECONDS, source: 'development' };
+  return { seconds: PRODUCTION_SHELL_IDLE_TIMEOUT_SECONDS, source: 'production' };
 }
