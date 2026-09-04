@@ -201,6 +201,7 @@ export class ProductionStateCoordinator {
         this.setGlobalScene('AD_IDLE');
         break;
       case 'REPORT_TOUCH_ACTIVITY':
+        // Global 120s idle only. Must not carry pointer/camera/bubble into other windows.
         if (this.globalScene !== 'PRODUCT_LIST') {
           return this.snapshotFor(monitorId);
         }

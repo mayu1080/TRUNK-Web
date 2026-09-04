@@ -195,6 +195,7 @@ function broadcastProduction(reason: string): void {
   }
 
   const quiet = reason.startsWith('touch activity');
+  const activityOnly = quiet;
   if (!quiet) {
     logEvent({ level: 'info', message: 'production state update', context: { reason } });
     logEvent({
@@ -203,7 +204,12 @@ function broadcastProduction(reason: string): void {
       context: productionCoordinator.dump() as unknown as Record<string, unknown>,
     });
   }
-  ProductionStateCoordinator.broadcastAll(monitorWindows, productionCoordinator);
+  // Idle reset stays global via productionIdle.noteValidTouch above.
+  // Do not fan out snapshots (or pointer coords) — that re-rendered every LIST
+  // and mixed global activity with local gesture / camera state.
+  if (!activityOnly) {
+    ProductionStateCoordinator.broadcastAll(monitorWindows, productionCoordinator);
+  }
   broadcastManagementStatus();
 }
 

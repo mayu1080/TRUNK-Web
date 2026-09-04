@@ -69,6 +69,26 @@ function isDebugPanelEvent(event: Event): boolean {
   return Boolean(target instanceof Element && target.closest('.debug-panel, .debug-toggle, .topbar'));
 }
 
+/** Scene / overlay / layout identity. Idle timestamps are global activity, not LIST gesture. */
+function listGestureIdentity(snapshot: ProductionSnapshot): string {
+  return [
+    snapshot.globalScene,
+    snapshot.monitorId,
+    snapshot.own.localOverlay,
+    snapshot.own.interactionLocked,
+    snapshot.own.selectedImageId ?? '',
+    snapshot.own.selectedCategoryId ?? '',
+    snapshot.video.scene,
+    snapshot.video.sessionId,
+    snapshot.layout.width,
+    snapshot.layout.height,
+    snapshot.layout.viewportOffsetX,
+    snapshot.layout.viewportOffsetY,
+    snapshot.layout.scale,
+    snapshot.layout.orientation,
+  ].join('|');
+}
+
 type ListPreloadStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 function listPreloadStatus(scene: ProductionSnapshot['globalScene'], load: ContentLoadStatus | undefined): ListPreloadStatus {
@@ -146,7 +166,16 @@ export function App() {
     try {
       const next = await window.trunkApi.dispatchProduction(action);
       snapshotRef.current = next;
-      setSnapshot(next);
+      setSnapshot((prev) => {
+        if (
+          action.type === 'REPORT_TOUCH_ACTIVITY' &&
+          prev &&
+          listGestureIdentity(prev) === listGestureIdentity(next)
+        ) {
+          return prev;
+        }
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -156,6 +185,7 @@ export function App() {
     const current = snapshotRef.current;
     if (!current || current.globalScene !== 'PRODUCT_LIST') return;
     lastActivityAtRef.current = Date.now();
+    // Global 120s Non-Touch idle only. Must not re-enter local camera/gesture.
     void dispatch({ type: 'REPORT_TOUCH_ACTIVITY' });
   }, [dispatch]);
 
@@ -199,12 +229,19 @@ export function App() {
     });
     unsub = window.trunkApi.onProductionStateChanged((next) => {
       snapshotRef.current = next;
-      setSnapshot(next);
+      setSnapshot((prev) => {
+        if (prev && listGestureIdentity(prev) === listGestureIdentity(next)) {
+          return prev;
+        }
+        return next;
+      });
     });
     const unsubBubble = window.trunkApi.onBubbleAggregate?.((payload) => {
+      if (!debugModeRef.current) return;
       setBubbleAggregate(payload);
     });
     const unsubTouch = window.trunkApi.onTouchRouting?.((payload) => {
+      if (!debugModeRef.current) return;
       setTouchRouting(payload);
       if (payload.mapping) setWindowMapping(payload.mapping);
     });
@@ -987,7 +1024,11 @@ export function App() {
                   `activeBubbleCount: ${bubbleAggregate.activeBubbleCount}  byMonitor: [${bubbleAggregate.byMonitor.map((row) => `M${row.monitorId}:${row.bubbleVisible ? '1' : '0'}`).join(' ')}]`,
                   `activePointerCount: ${listStats.activePointerCount}  nativeTouchCount: ${listStats.nativeTouchCount}  ids: [${listStats.activePointerIds.join(',')}]  gestureMode: ${listStats.gestureMode}`,
                   `oneFingerPanActive: ${listStats.oneFingerPanActive}  twoFingerPanActive: ${listStats.twoFingerPanActive}  multiTouchBlocked: ${listStats.multiTouchBlocked}`,
-                  `lastPointerType: ${listStats.lastPointerType}  lastTouchMonitorId: ${listStats.lastTouchMonitorId ?? '—'}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: monitor-${monitorId}`,
+                  `lastPointerType: ${listStats.lastPointerType}  lastTouchMonitorId: ${listStats.lastTouchMonitorId ?? '—'}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: ${thisWindowId ?? `monitor-${monitorId}`}`,
+                  `interactionSessionId: ${listStats.interactionSessionId}  ownerWindowId: ${listStats.ownerWindowId ?? '—'}  ownerDisplayId: ${listStats.ownerDisplayId ?? '—'}  lastCameraUpdate: ${listStats.lastCameraUpdateReason}`,
+                  listStats.cameraPanDebug.length
+                    ? listStats.cameraPanDebug.map((row, index) => `camWrite[${index}]: ${row}`).join('\n')
+                    : 'camWrite: (none this session — debug mode only, ring of 8)',
                   `tapSuppressed: ${listStats.tapSuppressed}  byTwoFinger: ${listStats.tapSuppressedByTwoFinger}  byMultiTouch: ${listStats.tapSuppressedByMultiTouch}  byPinch: ${listStats.tapSuppressedByPinch}`,
                   `twoFingerDollyActive: ${listStats.twoFingerDollyActive}  twoFingerDollyDeltaY: ${listStats.twoFingerDollyDeltaY.toFixed(1)}  twoFingerDollyTotalY: ${listStats.twoFingerDollyTotalY.toFixed(1)}`,
                   `twoFingerDollyDeadZonePx: ${listStats.twoFingerDollyDeadZonePx}  twoFingerDollyMaxDeltaPx: ${listStats.twoFingerDollyMaxDeltaPx}  twoFingerDollyScale: ${listStats.twoFingerDollyScale}`,
@@ -1156,6 +1197,11 @@ export function App() {
                     nativeTouchCount: listStats.nativeTouchCount,
                     lastPointerType: listStats.lastPointerType,
                     lastTouchMonitorId: listStats.lastTouchMonitorId,
+                    interactionSessionId: listStats.interactionSessionId,
+                    ownerWindowId: listStats.ownerWindowId,
+                    ownerDisplayId: listStats.ownerDisplayId,
+                    lastCameraUpdateReason: listStats.lastCameraUpdateReason,
+                    cameraPanDebug: listStats.cameraPanDebug,
                     twoFingerDollyActive: listStats.twoFingerDollyActive,
                     twoFingerDollyDeltaY: Number(listStats.twoFingerDollyDeltaY.toFixed(1)),
                     twoFingerDollyTotalY: Number(listStats.twoFingerDollyTotalY.toFixed(1)),

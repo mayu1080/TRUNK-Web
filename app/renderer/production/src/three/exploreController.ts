@@ -35,6 +35,16 @@ import {
   wrapDelta,
   type ListWorld,
 } from './sceneLayout';
+import {
+  CAMERA_PAN_DEBUG_RING,
+  decideOneFingerPanMove,
+  eventBelongsToWindow,
+  formatCameraPanDebugSample,
+  isDuplicateLocalPointerDown,
+  localBubbleFingerGate,
+  type CameraPanDebugSample,
+  type CameraUpdateReason,
+} from '@trunk-shared/localGestureSession';
 
 const CARD_LONG_SIDE = 280;
 const TEXTURE_LOAD_CONCURRENCY = 4;
@@ -68,6 +78,11 @@ interface PointerState {
   lastY: number;
   startTime: number;
   dragging: boolean;
+  sessionId: number;
+  ownerMonitorId: number;
+  ownerWindowId: number | null;
+  ownerDisplayId: number | null;
+  pointerType: string;
 }
 
 interface ListCard {
@@ -250,6 +265,12 @@ export class ExploreController {
   private nativeTouchCount = 0;
   private lastPointerType = 'none';
   private lastTouchMonitorId: number | null = null;
+  /** Local to this BrowserWindow. Camera pan is gated on this session, not global activity. */
+  private interactionSessionId = 0;
+  private ownerWindowId: number | null = null;
+  private ownerDisplayId: number | null = null;
+  private cameraPanDebug: CameraPanDebugSample[] = [];
+  private lastCameraUpdateReason: CameraUpdateReason | 'none' = 'none';
   private textureOkByScheme = { file: 0, custom: 0, other: 0 };
   private textureFailByScheme = { file: 0, custom: 0, other: 0 };
   private sharedTextures = new Map<string, THREE.Texture>();
@@ -380,6 +401,8 @@ export class ExploreController {
     try {
       const config = await window.trunkApi?.getConfig?.();
       this.contentRoot = config?.contentRoot ?? null;
+      this.ownerWindowId = config?.windowId ?? this.ownerWindowId;
+      this.ownerDisplayId = config?.displayId ?? this.ownerDisplayId;
     } catch {
       this.contentRoot = null;
     }
@@ -810,6 +833,77 @@ export class ExploreController {
     return Math.max(this.pointers.size, this.nativeTouchCount);
   }
 
+  private isCameraPanDebugEnabled(): boolean {
+    return typeof document !== 'undefined' && Boolean(document.querySelector('.app.debug-mode'));
+  }
+
+  private pointerEventBelongsHere(e: PointerEvent): boolean {
+    const viewIsThisWindow = !e.view || e.view === window;
+    return eventBelongsToWindow({
+      viewIsThisWindow,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      viewportWidth: window.innerWidth || 1,
+      viewportHeight: window.innerHeight || 1,
+    });
+  }
+
+  private recordCameraPanDebug(
+    e: PointerEvent,
+    reason: CameraUpdateReason,
+    previousX: number,
+    previousY: number,
+    deltaX: number,
+    deltaY: number,
+    beforeX: number,
+    beforeY: number,
+    afterX: number,
+    afterY: number,
+  ): void {
+    this.lastCameraUpdateReason = reason;
+    if (!this.isCameraPanDebugEnabled()) return;
+    const sample: CameraPanDebugSample = {
+      timestamp: Date.now(),
+      windowId: this.ownerWindowId,
+      monitorId: this.layout.monitorId,
+      displayId: this.ownerDisplayId,
+      sourceEventType: e.type,
+      sourcePointerId: e.pointerId,
+      sourcePointerType: e.pointerType || 'unknown',
+      gestureMode: this.gestureMode,
+      activePointerCount: this.pointers.size,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      previousX,
+      previousY,
+      deltaX,
+      deltaY,
+      cameraBeforeX: beforeX,
+      cameraBeforeY: beforeY,
+      cameraAfterX: afterX,
+      cameraAfterY: afterY,
+      cameraUpdateReason: reason,
+      gestureSessionId: this.interactionSessionId,
+    };
+    this.cameraPanDebug = [...this.cameraPanDebug, sample].slice(-CAMERA_PAN_DEBUG_RING);
+  }
+
+  private toPointerRecord(p: PointerState) {
+    return {
+      id: p.id,
+      startX: p.startX,
+      startY: p.startY,
+      lastX: p.lastX,
+      lastY: p.lastY,
+      sessionId: p.sessionId,
+      ownerMonitorId: p.ownerMonitorId,
+      ownerWindowId: p.ownerWindowId,
+      ownerDisplayId: p.ownerDisplayId,
+      pointerType: p.pointerType,
+      dragging: p.dragging,
+    };
+  }
+
   private beginTwoFingerSessionIfNeeded(): void {
     if (this.effectiveFingerCount() < 2) return;
     if (this.gestureMode === 'multi-touch-blocked') return;
@@ -831,6 +925,7 @@ export class ExploreController {
       this.pinchActive = false;
       this.twoFingerDollyDeltaY = 0;
       this.twoFingerDollyTotalY = 0;
+      this.hideBubbleForMultiTouch();
       this.callbacks.onValidActivity?.();
     }
     this.pinchSession = true;
@@ -959,9 +1054,11 @@ export class ExploreController {
 
   getBubbleState(): BubbleRuntimeState {
     const allowed = this.isBubbleAllowed();
+    const fingerGate = localBubbleFingerGate(this.effectiveFingerCount());
+    const visible = this.bubbleVisible && allowed && fingerGate !== 'hide-multi';
     return {
       enabled: listConfig.bubbleEnabled,
-      visible: this.bubbleVisible && allowed,
+      visible,
       allowed,
       screenX: this.bubbleScreenX,
       screenY: this.bubbleScreenY,
@@ -970,7 +1067,7 @@ export class ExploreController {
       pointerType: this.bubblePointerType,
       revealCenterNdcX: this.revealCenterNdcX,
       revealCenterNdcY: this.revealCenterNdcY,
-      revealActive: this.revealActive,
+      revealActive: this.revealActive && visible,
       bubbleMonitorId: this.layout.monitorId,
     };
   }
@@ -981,7 +1078,7 @@ export class ExploreController {
 
   private showBubbleAt(clientX: number, clientY: number, pointerType: string): void {
     if (!this.isBubbleAllowed()) return;
-    if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) return;
+    if (localBubbleFingerGate(this.effectiveFingerCount()) !== 'show') return;
     if (this.hideBubbleTimer) {
       clearTimeout(this.hideBubbleTimer);
       this.hideBubbleTimer = null;
@@ -1009,7 +1106,12 @@ export class ExploreController {
 
   private updateBubbleFromPointer(e: PointerEvent, opts: { show?: boolean; contact?: boolean } = {}): void {
     if (!this.isBubbleAllowed()) return;
-    if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) return;
+    const gate = localBubbleFingerGate(this.effectiveFingerCount());
+    if (gate === 'hide-multi') {
+      this.hideBubbleForMultiTouch();
+      return;
+    }
+    if (gate !== 'show') return;
     if (opts.show || this.bubbleVisible) {
       this.showBubbleAt(e.clientX, e.clientY, e.pointerType || 'mouse');
     }
@@ -1161,10 +1263,16 @@ export class ExploreController {
 
   private onWindowBlur = (): void => {
     this.shiftHeld = false;
-    this.pointers.clear();
-    this.nativeTouchCount = 0;
-    this.resetPinchTracking();
-    this.bubbleContactActive = false;
+    // Keep local touch sessions. Focus moving to another monitor must not
+    // clear lastX/startX — a leftover pointermove at the original down point
+    // would snap camera XY back toward the first contact.
+    for (const [id, p] of [...this.pointers.entries()]) {
+      if (p.pointerType !== 'touch') this.pointers.delete(id);
+    }
+    if (this.pointers.size === 0 && this.nativeTouchCount === 0) {
+      this.resetPinchTracking();
+      this.bubbleContactActive = false;
+    }
   };
 
   private onNativeTouchChange = (e: TouchEvent): void => {
@@ -1195,16 +1303,42 @@ export class ExploreController {
   private onPointerDown = (e: PointerEvent): void => {
     this.lastPointerType = e.pointerType || 'mouse';
     if (e.pointerType === 'touch') this.lastTouchMonitorId = this.layout.monitorId;
+    if (!this.pointerEventBelongsHere(e)) return;
     if (!this.interactionEnabled) {
       this.updateBubbleFromPointer(e, { show: true, contact: true });
       return;
     }
     e.preventDefault();
     this.callbacks.onValidActivity?.();
+    const existing = this.pointers.get(e.pointerId);
+    if (isDuplicateLocalPointerDown(existing ? this.toPointerRecord(existing) : undefined, this.interactionSessionId)) {
+      try {
+        this.renderer.domElement.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* contact may already be captured */
+      }
+      this.recordCameraPanDebug(
+        e,
+        'duplicate-pointerdown-kept',
+        existing!.lastX,
+        existing!.lastY,
+        0,
+        0,
+        this.targetCameraX,
+        this.targetCameraY,
+        this.targetCameraX,
+        this.targetCameraY,
+      );
+      this.updateBubbleFromPointer(e, { show: true, contact: true });
+      return;
+    }
     try {
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     } catch {
       /* synthetic / CDP pointers have no active capture */
+    }
+    if (this.pointers.size === 0 && this.nativeTouchCount <= 1) {
+      this.interactionSessionId += 1;
     }
     this.pointers.set(e.pointerId, {
       id: e.pointerId,
@@ -1214,6 +1348,11 @@ export class ExploreController {
       lastY: e.clientY,
       startTime: performance.now(),
       dragging: false,
+      sessionId: this.interactionSessionId,
+      ownerMonitorId: this.layout.monitorId,
+      ownerWindowId: this.ownerWindowId,
+      ownerDisplayId: this.ownerDisplayId,
+      pointerType: e.pointerType || 'mouse',
     });
     if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) {
       this.enterMultiTouchBlocked();
@@ -1265,36 +1404,39 @@ export class ExploreController {
   private onPointerMove = (e: PointerEvent): void => {
     this.lastPointerType = e.pointerType || this.lastPointerType;
     if (e.pointerType === 'touch') this.lastTouchMonitorId = this.layout.monitorId;
+    if (!this.pointerEventBelongsHere(e)) return;
     if (this.gestureMode !== 'multi-touch-blocked' && this.effectiveFingerCount() < 3 && this.isBubbleAllowed()) {
       this.updateBubbleFromPointer(e, {
-        show: this.bubbleContactActive || this.bubbleVisible || true,
+        show: this.bubbleContactActive || this.bubbleVisible,
       });
     }
     if (!this.interactionEnabled) return;
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
+    if (p.sessionId !== this.interactionSessionId) return;
     e.preventDefault();
-    const dx = e.clientX - p.lastX;
-    const dy = e.clientY - p.lastY;
     const totalMove = Math.hypot(e.clientX - p.startX, e.clientY - p.startY);
     if (!p.dragging && totalMove >= listConfig.tapMaxMovePx) {
       p.dragging = true;
       this.callbacks.onValidActivity?.();
     }
-    p.lastX = e.clientX;
-    p.lastY = e.clientY;
 
     if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) {
+      p.lastX = e.clientX;
+      p.lastY = e.clientY;
       this.enterMultiTouchBlocked();
       return;
     }
 
     if (this.sessionBlocksOneFinger()) {
+      p.lastX = e.clientX;
+      p.lastY = e.clientY;
       if (this.pointers.size >= 2) this.applyTwoFingerDollyFromMove();
       return;
     }
 
     // 1本指のみ camera X/Y pan。2本指は PointerEvent が1本でも TouchEvent で止める。
+    // Pan is gated on this window's interactionSessionId — never on global activity IPC.
     if (
       p.dragging &&
       this.pointers.size === 1 &&
@@ -1303,17 +1445,49 @@ export class ExploreController {
       this.gestureMode === 'one-finger' &&
       !this.sessionBlocksOneFinger()
     ) {
-      const nextX = this.targetCameraX - dx * CAMERA_CONFIG.dragSensitivity;
-      const nextY = this.targetCameraY + dy * CAMERA_CONFIG.dragSensitivity;
-      if (this.world.mode === 'independent') {
-        this.targetCameraX = nextX;
-        this.targetCameraY = nextY;
-        this.wrapPanLoop();
-      } else {
-        this.targetCameraX = clamp(nextX, this.panMinX, this.panMaxX);
-        this.targetCameraY = clamp(nextY, this.panMinY, this.panMaxY);
+      const decision = decideOneFingerPanMove({
+        pointer: this.toPointerRecord(p),
+        clientX: e.clientX,
+        clientY: e.clientY,
+        interactionSessionId: this.interactionSessionId,
+        ownerMonitorId: this.layout.monitorId,
+        ownerWindowId: this.ownerWindowId,
+      });
+      // stale-start-replay-ignored: M3 focus must not pan M1 via clientX=startX.
+      const beforeX = this.targetCameraX;
+      const beforeY = this.targetCameraY;
+      if (decision.applyPan) {
+        const nextX = this.targetCameraX - decision.dx * CAMERA_CONFIG.dragSensitivity;
+        const nextY = this.targetCameraY + decision.dy * CAMERA_CONFIG.dragSensitivity;
+        if (this.world.mode === 'independent') {
+          this.targetCameraX = nextX;
+          this.targetCameraY = nextY;
+          this.wrapPanLoop();
+        } else {
+          this.targetCameraX = clamp(nextX, this.panMinX, this.panMaxX);
+          this.targetCameraY = clamp(nextY, this.panMinY, this.panMaxY);
+        }
       }
+      this.recordCameraPanDebug(
+        e,
+        decision.reason,
+        p.lastX,
+        p.lastY,
+        decision.dx,
+        decision.dy,
+        beforeX,
+        beforeY,
+        this.targetCameraX,
+        this.targetCameraY,
+      );
+      if (decision.updateLast) {
+        p.lastX = e.clientX;
+        p.lastY = e.clientY;
+      }
+      return;
     }
+    p.lastX = e.clientX;
+    p.lastY = e.clientY;
   };
 
   private finishPointer(e: PointerEvent, allowTap: boolean): void {
@@ -1361,7 +1535,17 @@ export class ExploreController {
   };
 
   private onLostPointerCapture = (e: PointerEvent): void => {
-    if (this.pointers.has(e.pointerId)) this.finishPointer(e, false);
+    const p = this.pointers.get(e.pointerId);
+    if (!p) return;
+    if (p.pointerType === 'touch' && p.sessionId === this.interactionSessionId) {
+      try {
+        this.renderer.domElement.setPointerCapture(e.pointerId);
+      } catch {
+        /* contact ended */
+      }
+      return;
+    }
+    this.finishPointer(e, false);
   };
 
   private onPointerLeave = (e: PointerEvent): void => {
@@ -1526,6 +1710,11 @@ export class ExploreController {
       nativeTouchCount: this.nativeTouchCount,
       lastPointerType: this.lastPointerType,
       lastTouchMonitorId: this.lastTouchMonitorId,
+      interactionSessionId: this.interactionSessionId,
+      ownerWindowId: this.ownerWindowId,
+      ownerDisplayId: this.ownerDisplayId,
+      lastCameraUpdateReason: this.lastCameraUpdateReason,
+      cameraPanDebug: this.cameraPanDebug.map(formatCameraPanDebugSample),
       twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
       twoFingerDollyTotalY: this.twoFingerDollyTotalY,
       wheelMode: this.wheelMode,
@@ -1682,6 +1871,11 @@ export class ExploreController {
       nativeTouchCount: this.nativeTouchCount,
       lastPointerType: this.lastPointerType,
       lastTouchMonitorId: this.lastTouchMonitorId,
+      interactionSessionId: this.interactionSessionId,
+      ownerWindowId: this.ownerWindowId,
+      ownerDisplayId: this.ownerDisplayId,
+      lastCameraUpdateReason: this.lastCameraUpdateReason,
+      cameraPanDebug: this.cameraPanDebug.map(formatCameraPanDebugSample),
       tapSuppressed:
         this.tapSuppressedByPinch || this.tapSuppressedByTwoFinger || this.tapSuppressedByMultiTouch,
       tapSuppressedByTwoFinger: this.tapSuppressedByTwoFinger,

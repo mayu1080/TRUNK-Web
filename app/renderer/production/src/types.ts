@@ -157,6 +157,11 @@ export interface ListDebugStats {
   lastPointerType: string;
   lastTouchMonitorId: number | null;
   activePointerIds: number[];
+  interactionSessionId: number;
+  ownerWindowId: number | null;
+  ownerDisplayId: number | null;
+  lastCameraUpdateReason: string;
+  cameraPanDebug: string[];
   tapSuppressed: boolean;
   tapSuppressedByTwoFinger: boolean;
   tapSuppressedByMultiTouch: boolean;

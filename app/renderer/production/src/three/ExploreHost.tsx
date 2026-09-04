@@ -87,6 +87,8 @@ export function ExploreHost({
       controllerRef.current = null;
     };
   }, [layout.monitorId, layout.viewportOffsetX, layout.viewportOffsetY, layout.scale, layout.orientation, layout.width, layout.height]);
+  // Do not depend on production snapshot / idle / activity IPC — remounting would
+  // re-apply layout origin and look like a camera jerk toward the first touch.
 
   useEffect(() => {
     controllerRef.current?.setOverlayOpen(overlayOpen);
