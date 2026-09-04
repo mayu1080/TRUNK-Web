@@ -35,6 +35,7 @@ export interface ManagementStatus {
   productionWindows: Array<{
     monitorId: number;
     displayId: number | null;
+    windowId: number | null;
     x: number;
     y: number;
     width: number;
@@ -45,6 +46,16 @@ export interface ManagementStatus {
     configHeight: number;
     boundsMismatch: boolean;
   }>;
+  mappingFlags: {
+    sharedDisplayId: boolean;
+    identicalBounds: boolean;
+  };
+  lastTouch: {
+    windowId: number | null;
+    monitorId: number | null;
+    displayId: number | null;
+    eventType: string | null;
+  } | null;
   managementDisplayIds: number[];
   ads: { contentId: string; foundCount: number; tracks: ManagementTrackRow[] };
   animation: { contentId: string; foundCount: number; tracks: ManagementTrackRow[] };
@@ -69,6 +80,13 @@ export function buildManagementStatus(input: {
   adsTracks: VideoTrackInfo[];
   animationContentId: string;
   animationTracks: VideoTrackInfo[];
+  windowIds?: Map<number, number | null>;
+  lastTouch?: {
+    windowId: number | null;
+    monitorId: number | null;
+    displayId: number | null;
+    eventType: string | null;
+  } | null;
 }): ManagementStatus {
   const productionByDisplay = new Map<number, number[]>();
   for (const row of input.placement.windows) {
@@ -103,6 +121,23 @@ export function buildManagementStatus(input: {
       };
     });
 
+  const productionWindows = input.placement.windows.map((row) => ({
+    monitorId: row.monitorId,
+    displayId: row.matchedDisplayId,
+    windowId: input.windowIds?.get(row.monitorId) ?? null,
+    x: row.bounds.x,
+    y: row.bounds.y,
+    width: row.bounds.width,
+    height: row.bounds.height,
+    configX: row.config.x,
+    configY: row.config.y,
+    configWidth: row.config.width,
+    configHeight: row.config.height,
+    boundsMismatch: row.boundsMismatch,
+  }));
+  const displayIds = productionWindows.map((row) => row.displayId).filter((id): id is number => id != null);
+  const boundKeys = productionWindows.map((row) => `${row.x},${row.y},${row.width}x${row.height}`);
+
   return {
     globalScene: input.globalScene,
     isDevFallback: input.placement.isDevFallback,
@@ -111,19 +146,12 @@ export function buildManagementStatus(input: {
     contentRoot: input.contentRoot,
     layoutPath: input.layoutPath,
     displays,
-    productionWindows: input.placement.windows.map((row) => ({
-      monitorId: row.monitorId,
-      displayId: row.matchedDisplayId,
-      x: row.bounds.x,
-      y: row.bounds.y,
-      width: row.bounds.width,
-      height: row.bounds.height,
-      configX: row.config.x,
-      configY: row.config.y,
-      configWidth: row.config.width,
-      configHeight: row.config.height,
-      boundsMismatch: row.boundsMismatch,
-    })),
+    productionWindows,
+    mappingFlags: {
+      sharedDisplayId: displayIds.length > 1 && new Set(displayIds).size < displayIds.length,
+      identicalBounds: boundKeys.length > 1 && new Set(boundKeys).size < boundKeys.length,
+    },
+    lastTouch: input.lastTouch ?? null,
     managementDisplayIds: [...input.placement.managementDisplayIds],
     ads: {
       contentId: input.adsContentId,

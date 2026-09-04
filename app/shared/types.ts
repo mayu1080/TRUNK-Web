@@ -124,6 +124,58 @@ export interface AppConfig {
   /** 無操作スリープ秒数（本番 600 / 開発は TRUNK_IDLE_TIMEOUT_SECONDS で上書き可） */
   idleTimeoutSeconds: number;
   idleTimeoutSource: 'production' | 'development';
+  /** Electron BrowserWindow.id for this renderer (Phase 7.5 touch routing). */
+  windowId?: number | null;
+  displayId?: number | null;
+}
+
+export interface TouchHitReport {
+  timestamp: number;
+  monitorId: number;
+  displayId: number | null;
+  windowId: number | null;
+  eventType: string;
+  pointerId: number | null;
+  pointerType: string;
+  activePointerCount: number;
+  nativeTouchCount: number;
+  clientX: number;
+  clientY: number;
+  screenX: number;
+  screenY: number;
+}
+
+export interface WindowMappingRow {
+  monitorId: number;
+  displayId: number | null;
+  windowId: number | null;
+  bounds: { x: number; y: number; width: number; height: number };
+}
+
+export interface WindowMappingDump {
+  windows: WindowMappingRow[];
+  sharedDisplayId: boolean;
+  identicalBounds: boolean;
+}
+
+export interface TouchRoutingPayload {
+  lastHit: TouchHitReport | null;
+  lastTouchWindowId: number | null;
+  lastTouchMonitorId: number | null;
+  lastTouchDisplayId: number | null;
+  mapping: WindowMappingDump;
+}
+
+export interface TouchHitInput {
+  eventType: string;
+  pointerId: number | null;
+  pointerType: string;
+  activePointerCount: number;
+  nativeTouchCount: number;
+  clientX: number;
+  clientY: number;
+  screenX: number;
+  screenY: number;
 }
 
 export interface LogEvent {
@@ -231,6 +283,9 @@ export interface TrunkApi {
       byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
     }) => void,
   ): () => void;
+  reportTouchHit(hit: TouchHitInput): void;
+  getWindowMapping(): Promise<WindowMappingDump>;
+  onTouchRouting(callback: (payload: TouchRoutingPayload) => void): () => void;
 }
 
 declare global {

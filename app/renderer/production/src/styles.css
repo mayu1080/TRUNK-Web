@@ -184,6 +184,38 @@ button {
   touch-action: none;
 }
 
+.touch-marker {
+  position: fixed;
+  z-index: 25;
+  pointer-events: none;
+  transform: translate(-50%, -120%);
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 220, 80, 0.85);
+  background: rgba(20, 16, 0, 0.82);
+  color: #ffe27a;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-family: ui-monospace, "Segoe UI", monospace;
+  white-space: nowrap;
+}
+
+.touch-marker--debug::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: #ffe27a;
+  box-shadow: 0 0 0 3px rgba(255, 226, 122, 0.35);
+}
+
+.review-mode .touch-marker {
+  display: none !important;
+}
+
 .bubble-overlay {
   position: absolute;
   z-index: 15;

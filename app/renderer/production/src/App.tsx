@@ -26,6 +26,16 @@ import { CATEGORY_MODAL_MOTION, SQUARE_LOGO_RELATIVE_PATH } from './categoryModa
 import { loadMaisonNeue, type BrandFontStatus } from './loadBrandFonts';
 import { isDebugMode, type UiDisplayMode } from './uiMode';
 import { collectViewportDebug, type ViewportDebugDump } from './viewportDebug';
+import { TouchMarker } from './ui/TouchMarker';
+import {
+  TOUCH_MOVE_THROTTLE_MS,
+  formatTouchHit,
+  formatWindowMappingLines,
+  pushTouchHit,
+  type LocalTouchHit,
+  type TouchRoutingPayload,
+  type WindowMappingDump,
+} from './touchRoutingDebug';
 
 const sceneCopy = {
   AD_IDLE: {
@@ -106,7 +116,22 @@ export function App() {
     activeBubbleCount: number;
     byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
   }>({ activeBubbleCount: 0, byMonitor: [] });
+  const [windowMapping, setWindowMapping] = useState<WindowMappingDump | null>(null);
+  const [touchRouting, setTouchRouting] = useState<TouchRoutingPayload | null>(null);
+  const [touchHits, setTouchHits] = useState<LocalTouchHit[]>([]);
+  const [touchMarker, setTouchMarker] = useState<{ clientX: number; clientY: number; monitorId: number } | null>(null);
+  const [thisWindowId, setThisWindowId] = useState<number | null>(null);
   const debugInitRef = useRef(false);
+  const debugModeRef = useRef(false);
+  const hitRingRef = useRef<LocalTouchHit[]>([]);
+  const lastMoveLogMsRef = useRef(0);
+  const pointerIdsRef = useRef(new Set<number>());
+  const nativeTouchCountRef = useRef(0);
+  const routingIdentityRef = useRef({
+    monitorId: 0,
+    displayId: null as number | null,
+    windowId: null as number | null,
+  });
   const snapshotRef = useRef<ProductionSnapshot | null>(null);
   snapshotRef.current = snapshot;
   const categoriesRef = useRef<ProductionCategory[]>([]);
@@ -179,9 +204,22 @@ export function App() {
     const unsubBubble = window.trunkApi.onBubbleAggregate?.((payload) => {
       setBubbleAggregate(payload);
     });
+    const unsubTouch = window.trunkApi.onTouchRouting?.((payload) => {
+      setTouchRouting(payload);
+      if (payload.mapping) setWindowMapping(payload.mapping);
+    });
+    if (window.trunkApi.getWindowMapping) {
+      void window.trunkApi.getWindowMapping().then(setWindowMapping);
+    }
+    if (window.trunkApi.getConfig) {
+      void window.trunkApi.getConfig().then((config) => {
+        if (config.windowId != null) setThisWindowId(config.windowId);
+      });
+    }
     return () => {
       unsub?.();
       unsubBubble?.();
+      unsubTouch?.();
     };
   }, []);
 
@@ -193,9 +231,89 @@ export function App() {
   }, [snapshot]);
 
   useEffect(() => {
+    debugModeRef.current = isDebugMode(uiMode);
+    if (isDebugMode(uiMode)) {
+      setTouchHits([...hitRingRef.current]);
+      const last = hitRingRef.current[hitRingRef.current.length - 1];
+      if (last) {
+        setTouchMarker({ clientX: last.clientX, clientY: last.clientY, monitorId: last.monitorId });
+      }
+    } else {
+      setTouchMarker(null);
+    }
+  }, [uiMode]);
+
+  useEffect(() => {
+    routingIdentityRef.current = {
+      monitorId: snapshot?.monitorId ?? 0,
+      displayId: snapshot?.layout.matchedDisplayId ?? null,
+      windowId:
+        thisWindowId ??
+        windowMapping?.windows.find((row) => row.monitorId === snapshot?.monitorId)?.windowId ??
+        null,
+    };
+    const mappedId =
+      windowMapping?.windows.find((row) => row.monitorId === snapshot?.monitorId)?.windowId ?? null;
+    if (mappedId != null && mappedId !== thisWindowId) setThisWindowId(mappedId);
+  }, [snapshot?.monitorId, snapshot?.layout.matchedDisplayId, thisWindowId, windowMapping]);
+
+  useEffect(() => {
+    const recordHit = (
+      eventType: string,
+      coords: { clientX: number; clientY: number; screenX: number; screenY: number },
+      pointerId: number | null,
+      pointerType: string,
+      ipc: boolean,
+    ) => {
+      const id = routingIdentityRef.current;
+      const hit: LocalTouchHit = {
+        timestamp: Date.now(),
+        monitorId: id.monitorId,
+        displayId: id.displayId,
+        windowId: id.windowId,
+        eventType,
+        pointerId,
+        pointerType,
+        activePointerCount: pointerIdsRef.current.size,
+        nativeTouchCount: nativeTouchCountRef.current,
+        clientX: coords.clientX,
+        clientY: coords.clientY,
+        screenX: coords.screenX,
+        screenY: coords.screenY,
+      };
+      hitRingRef.current = pushTouchHit(hitRingRef.current, hit);
+      if (debugModeRef.current) {
+        setTouchHits(hitRingRef.current);
+        setTouchMarker({ clientX: hit.clientX, clientY: hit.clientY, monitorId: hit.monitorId });
+      }
+      if (ipc) {
+        window.trunkApi.reportTouchHit?.({
+          eventType: hit.eventType,
+          pointerId: hit.pointerId,
+          pointerType: hit.pointerType,
+          activePointerCount: hit.activePointerCount,
+          nativeTouchCount: hit.nativeTouchCount,
+          clientX: hit.clientX,
+          clientY: hit.clientY,
+          screenX: hit.screenX,
+          screenY: hit.screenY,
+        });
+      }
+    };
+
     const onPointerDown = (event: PointerEvent) => {
       const current = snapshotRef.current;
       if (!current) return;
+      pointerIdsRef.current.add(event.pointerId);
+      if (!isDebugPanelEvent(event)) {
+        recordHit(
+          'pointerdown',
+          { clientX: event.clientX, clientY: event.clientY, screenX: event.screenX, screenY: event.screenY },
+          event.pointerId,
+          event.pointerType || 'unknown',
+          true,
+        );
+      }
       if (current.globalScene === 'ANIMATION') {
         if (!isDebugPanelEvent(event)) {
           event.preventDefault();
@@ -225,6 +343,19 @@ export function App() {
       }
     };
     const onPointerMove = (event: PointerEvent) => {
+      if (!isDebugPanelEvent(event) && debugModeRef.current) {
+        const now = Date.now();
+        if (now - lastMoveLogMsRef.current >= TOUCH_MOVE_THROTTLE_MS) {
+          lastMoveLogMsRef.current = now;
+          recordHit(
+            'pointermove',
+            { clientX: event.clientX, clientY: event.clientY, screenX: event.screenX, screenY: event.screenY },
+            event.pointerId,
+            event.pointerType || 'unknown',
+            false,
+          );
+        }
+      }
       const current = snapshotRef.current;
       if (!current || current.globalScene !== 'PRODUCT_LIST') return;
       if (current.own.localOverlay === 'NONE') return;
@@ -232,10 +363,31 @@ export function App() {
       if (Date.now() - lastActivityAtRef.current < 400) return;
       reportActivity();
     };
+    const onPointerUp = (event: PointerEvent) => {
+      pointerIdsRef.current.delete(event.pointerId);
+    };
     window.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('pointermove', onPointerMove, { capture: true });
+    window.addEventListener('pointerup', onPointerUp, { capture: true });
+    window.addEventListener('pointercancel', onPointerUp, { capture: true });
     const onTouchGuard = (event: TouchEvent) => {
+      nativeTouchCountRef.current = event.touches.length;
       if (isDebugPanelEvent(event)) return;
+      if (event.type === 'touchstart') {
+        const touch = event.changedTouches[0];
+        recordHit(
+          'touchstart',
+          {
+            clientX: touch?.clientX ?? 0,
+            clientY: touch?.clientY ?? 0,
+            screenX: touch?.screenX ?? 0,
+            screenY: touch?.screenY ?? 0,
+          },
+          touch?.identifier ?? null,
+          'touch',
+          true,
+        );
+      }
       if (event.touches.length >= 3) {
         event.preventDefault();
         return;
@@ -246,11 +398,17 @@ export function App() {
     };
     window.addEventListener('touchstart', onTouchGuard, { capture: true, passive: false });
     window.addEventListener('touchmove', onTouchGuard, { capture: true, passive: false });
+    window.addEventListener('touchend', onTouchGuard, { capture: true, passive: false });
+    window.addEventListener('touchcancel', onTouchGuard, { capture: true, passive: false });
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
       window.removeEventListener('touchstart', onTouchGuard, true);
       window.removeEventListener('touchmove', onTouchGuard, true);
+      window.removeEventListener('touchend', onTouchGuard, true);
+      window.removeEventListener('touchcancel', onTouchGuard, true);
     };
   }, [dispatch, reportActivity]);
 
@@ -635,6 +793,9 @@ export function App() {
 
   return (
     <div className={`app scene-${globalScene} overlay-${own.localOverlay}${reviewMode ? ' review-mode' : ' debug-mode'}`}>
+      {isDebugMode(uiMode) && touchMarker ? (
+        <TouchMarker monitorId={touchMarker.monitorId} clientX={touchMarker.clientX} clientY={touchMarker.clientY} />
+      ) : null}
       {chromeVisible ? (
       <header className="topbar">
         <span className="badge">monitor {monitorId}</span>
@@ -783,6 +944,13 @@ export function App() {
             `viewportOffset: ${layout.viewportOffsetX}, ${layout.viewportOffsetY}  layout.scale=${layout.scale}`,
             `orientation: ${layout.orientation}  config ${layout.width}x${layout.height}`,
             `windowBounds: ${layout.windowBounds.width}x${layout.windowBounds.height}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: monitor-${monitorId}`,
+            `TOUCH ROUTING  thisWindowId: ${thisWindowId ?? '—'}  lastTouchWindowId: ${touchRouting?.lastTouchWindowId ?? '—'}  lastTouchMonitorId: ${touchRouting?.lastTouchMonitorId ?? '—'}  lastTouchDisplayId: ${touchRouting?.lastTouchDisplayId ?? '—'}`,
+            `Case B cue: lastTouchWindowId unchanged across physical monitors → OS HID mapping (not app bubble).`,
+            `FLAG sharedDisplayId=${windowMapping?.sharedDisplayId ?? '—'}  identicalBounds=${windowMapping?.identicalBounds ?? '—'}`,
+            ...formatWindowMappingLines(windowMapping, thisWindowId, monitorId),
+            touchHits.length
+              ? [`last local hit: ${formatTouchHit(touchHits[touchHits.length - 1]!)}`, ...touchHits.map((hit, index) => `hit[${index}]: ${formatTouchHit(hit)}`)].join('\n')
+              : 'touchHits: (none on this window yet — if another monitor shows lastTouchWindowId, this BrowserWindow did not receive the event)',
             `activeBubbleCount: ${bubbleAggregate.activeBubbleCount}  lastPointerType: ${listStats?.lastPointerType ?? 'none'}  lastTouchMonitorId: ${listStats?.lastTouchMonitorId ?? '—'}`,
             viewportDebug
               ? [
@@ -893,6 +1061,12 @@ export function App() {
               monitorId,
               displayId: layout.matchedDisplayId ?? null,
               windowId: `monitor-${monitorId}`,
+              thisWindowId,
+              lastTouchWindowId: touchRouting?.lastTouchWindowId ?? null,
+              lastTouchMonitorId: touchRouting?.lastTouchMonitorId ?? null,
+              lastTouchDisplayId: touchRouting?.lastTouchDisplayId ?? null,
+              windowMapping,
+              touchHits,
               globalScene,
               adMode,
               isDevFallback: debug.isDevFallback,
@@ -1001,6 +1175,8 @@ export function App() {
                     bubbleY: Number(listStats.bubbleY.toFixed(1)),
                     bubbleMonitorId: listStats.bubbleMonitorId,
                     activeBubbleCount: bubbleAggregate.activeBubbleCount,
+                    thisWindowId,
+                    lastTouchWindowId: touchRouting?.lastTouchWindowId ?? null,
                     contextLost: listStats.contextLost,
                   }
                 : null,

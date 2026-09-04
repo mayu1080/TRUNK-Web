@@ -21,7 +21,7 @@ import { resolveContentRoot } from './content/contentRoot';
 import { MonitorStateStore } from './state/monitorStateStore';
 import { StateCoordinator } from './state/stateCoordinator';
 import { resolveIdleTimeoutConfig, resolveProductionShellIdleTimeout } from '../shared/idleConfig';
-import type { LogEvent, StateAction } from '../shared/types';
+import type { LogEvent, StateAction, TouchHitInput, TouchHitReport, TouchRoutingPayload, WindowMappingDump } from '../shared/types';
 import type { GlobalScene, ProductionAction } from '../shared/productionState';
 import { loadMonitorLayout, MonitorLayoutError } from './production/monitorLayout';
 import { resolveWindowPlacement } from './production/windowPlacement';
@@ -71,6 +71,7 @@ if (PRODUCTION_SHELL) {
 const monitorWindows = new Map<number, BrowserWindow>();
 const webContentsToMonitor = new Map<number, number>();
 const bubbleVisibleByMonitor = new Map<number, boolean>();
+let lastTouchHit: TouchHitReport | null = null;
 
 let stateCoordinator: StateCoordinator | null = null;
 let productionCoordinator: ProductionStateCoordinator | null = null;
@@ -129,6 +130,48 @@ function broadcastBubbleAggregate(): void {
   }
 }
 
+function currentWindowMapping(): WindowMappingDump {
+  const windows = (productionPlacement?.windows ?? []).map((row) => {
+    const win = monitorWindows.get(row.monitorId);
+    return {
+      monitorId: row.monitorId,
+      displayId: row.matchedDisplayId,
+      windowId: win && !win.isDestroyed() ? win.id : null,
+      bounds: { ...row.bounds },
+    };
+  });
+  const displayIds = windows.map((row) => row.displayId).filter((id): id is number => id != null);
+  const boundKeys = windows.map(
+    (row) => `${row.bounds.x},${row.bounds.y},${row.bounds.width}x${row.bounds.height}`,
+  );
+  return {
+    windows,
+    sharedDisplayId: displayIds.length > 1 && new Set(displayIds).size < displayIds.length,
+    identicalBounds: boundKeys.length > 1 && new Set(boundKeys).size < boundKeys.length,
+  };
+}
+
+function currentTouchRoutingPayload(): TouchRoutingPayload {
+  return {
+    lastHit: lastTouchHit,
+    lastTouchWindowId: lastTouchHit?.windowId ?? null,
+    lastTouchMonitorId: lastTouchHit?.monitorId ?? null,
+    lastTouchDisplayId: lastTouchHit?.displayId ?? null,
+    mapping: currentWindowMapping(),
+  };
+}
+
+function broadcastTouchRouting(): void {
+  // Metadata only: last window that received a real input event. Does not forward touches.
+  const payload = currentTouchRoutingPayload();
+  for (const win of monitorWindows.values()) {
+    if (!win.isDestroyed()) win.webContents.send('trunk:touch-routing', payload);
+  }
+  if (managementWindow && !managementWindow.isDestroyed()) {
+    managementWindow.webContents.send('trunk:touch-routing', payload);
+  }
+}
+
 function broadcastState(monitorId: number): void {
   if (!stateCoordinator) return;
   const state = stateCoordinator.getState(monitorId);
@@ -172,6 +215,8 @@ function registerSharedIpc(): void {
     const idle = PRODUCTION_SHELL
       ? resolveProductionShellIdleTimeout(app.isPackaged)
       : resolveIdleTimeoutConfig(app.isPackaged);
+    const win = monitorWindows.get(monitorId);
+    const placement = productionPlacement?.windows.find((row) => row.monitorId === monitorId);
     return {
       contentRoot: service.contentRoot,
       isPackaged: app.isPackaged,
@@ -179,6 +224,8 @@ function registerSharedIpc(): void {
       monitorCount: MONITOR_COUNT,
       idleTimeoutSeconds: idle.seconds,
       idleTimeoutSource: idle.source,
+      windowId: win && !win.isDestroyed() ? win.id : null,
+      displayId: placement?.matchedDisplayId ?? null,
     };
   });
 
@@ -294,6 +341,50 @@ function registerProductionIpc(): void {
     bubbleVisibleByMonitor.set(monitorId, next);
     broadcastBubbleAggregate();
   });
+
+  ipcMain.handle('trunk:getWindowMapping', () => currentWindowMapping());
+
+  ipcMain.on('trunk:reportTouchHit', (event, payload: TouchHitInput | undefined) => {
+    let monitorId: number;
+    try {
+      monitorId = resolveMonitorId(event);
+    } catch {
+      return;
+    }
+    const win = monitorWindows.get(monitorId);
+    const placement = productionPlacement?.windows.find((row) => row.monitorId === monitorId);
+    const prevMonitorId = lastTouchHit?.monitorId ?? null;
+    lastTouchHit = {
+      timestamp: Date.now(),
+      monitorId,
+      displayId: placement?.matchedDisplayId ?? null,
+      windowId: win && !win.isDestroyed() ? win.id : null,
+      eventType: payload?.eventType ?? 'unknown',
+      pointerId: payload?.pointerId ?? null,
+      pointerType: payload?.pointerType ?? 'unknown',
+      activePointerCount: payload?.activePointerCount ?? 0,
+      nativeTouchCount: payload?.nativeTouchCount ?? 0,
+      clientX: payload?.clientX ?? 0,
+      clientY: payload?.clientY ?? 0,
+      screenX: payload?.screenX ?? 0,
+      screenY: payload?.screenY ?? 0,
+    };
+    if (prevMonitorId !== monitorId) {
+      logEvent({
+        level: 'info',
+        message: 'touch routing hit',
+        context: {
+          monitorId,
+          displayId: lastTouchHit.displayId,
+          windowId: lastTouchHit.windowId,
+          eventType: lastTouchHit.eventType,
+          pointerType: lastTouchHit.pointerType,
+        },
+      });
+    }
+    broadcastTouchRouting();
+    broadcastManagementStatus();
+  });
 }
 
 function resolveDemo0820Index(): string {
@@ -364,6 +455,7 @@ function attachWindow(
     message: 'created window',
     context: {
       monitorId,
+      electronWindowId: win.id,
       webContentsId: win.webContents.id,
       bounds,
       title,
@@ -510,6 +602,10 @@ function applySiteWindowChrome(
 
 function currentManagementStatus(): ManagementStatus | null {
   if (!productionCoordinator || !productionPlacement || !productionAds || !productionAnimation) return null;
+  const windowIds = new Map<number, number | null>();
+  for (const [monitorId, win] of monitorWindows) {
+    windowIds.set(monitorId, win.isDestroyed() ? null : win.id);
+  }
   return buildManagementStatus({
     displays: screen.getAllDisplays(),
     placement: productionPlacement,
@@ -520,6 +616,15 @@ function currentManagementStatus(): ManagementStatus | null {
     adsTracks: productionAds.tracks,
     animationContentId: productionAnimation.contentId,
     animationTracks: productionAnimation.tracks,
+    windowIds,
+    lastTouch: lastTouchHit
+      ? {
+          windowId: lastTouchHit.windowId,
+          monitorId: lastTouchHit.monitorId,
+          displayId: lastTouchHit.displayId,
+          eventType: lastTouchHit.eventType,
+        }
+      : null,
   });
 }
 
@@ -858,6 +963,12 @@ function startProductionShell(): void {
     }
     win.loadFile(indexPath);
   }
+
+  logEvent({
+    level: 'info',
+    message: 'window mapping dump',
+    context: currentWindowMapping() as unknown as Record<string, unknown>,
+  });
 
   scheduleProductionWindowStack('startup', undefined, true);
 

@@ -14,7 +14,10 @@ import type {
   ProductionDump,
   ProductionSnapshot,
   StateAction,
+  TouchHitInput,
+  TouchRoutingPayload,
   TrunkApi,
+  WindowMappingDump,
 } from '../shared/types';
 
 const trunkApi: TrunkApi = {
@@ -70,6 +73,17 @@ const trunkApi: TrunkApi = {
     ipcRenderer.on('trunk:bubble-aggregate', handler);
     return () => {
       ipcRenderer.removeListener('trunk:bubble-aggregate', handler);
+    };
+  },
+  reportTouchHit: (hit: TouchHitInput) => {
+    ipcRenderer.send('trunk:reportTouchHit', hit);
+  },
+  getWindowMapping: () => ipcRenderer.invoke('trunk:getWindowMapping') as Promise<WindowMappingDump>,
+  onTouchRouting: (callback: (payload: TouchRoutingPayload) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: TouchRoutingPayload) => callback(payload);
+    ipcRenderer.on('trunk:touch-routing', handler);
+    return () => {
+      ipcRenderer.removeListener('trunk:touch-routing', handler);
     };
   },
 };

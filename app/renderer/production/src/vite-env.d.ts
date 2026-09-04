@@ -21,6 +21,8 @@ declare global {
         monitorCount: number;
         idleTimeoutSeconds: number;
         idleTimeoutSource: 'production' | 'development';
+        windowId?: number | null;
+        displayId?: number | null;
       }>;
       getProductionSnapshot(): Promise<ProductionSnapshot>;
       getProductionDump(): Promise<unknown>;
@@ -32,6 +34,21 @@ declare global {
           activeBubbleCount: number;
           byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
         }) => void,
+      ): () => void;
+      reportTouchHit(hit: {
+        eventType: string;
+        pointerId: number | null;
+        pointerType: string;
+        activePointerCount: number;
+        nativeTouchCount: number;
+        clientX: number;
+        clientY: number;
+        screenX: number;
+        screenY: number;
+      }): void;
+      getWindowMapping(): Promise<import('./touchRoutingDebug').WindowMappingDump>;
+      onTouchRouting(
+        callback: (payload: import('./touchRoutingDebug').TouchRoutingPayload) => void,
       ): () => void;
       logEvent(event: {
         level: 'info' | 'warn' | 'error';
