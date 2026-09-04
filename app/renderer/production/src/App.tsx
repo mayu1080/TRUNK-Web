@@ -778,9 +778,13 @@ export function App() {
                   `firstImageUrlScheme: ${listStats.firstImageUrlScheme}`,
                   `camera: ${listStats.cameraX.toFixed(0)}, ${listStats.cameraY.toFixed(0)}, ${listStats.cameraZ.toFixed(0)}`,
                   `dollyVelocity: ${listStats.dollyVelocity.toFixed(1)}  lastInput: ${listStats.lastDollyInput}  wrap: ${listStats.wrapCount}`,
+                  `cameraZ: ${listStats.cameraZ.toFixed(0)}  targetCameraZ: ${listStats.targetCameraZ.toFixed(0)}`,
                   `bubble visible=${listStats.bubbleVisible} allowed=${listStats.bubbleAllowed} reveal=${listStats.revealActive}`,
                   `bubbleScreen: ${listStats.bubbleScreenX.toFixed(0)}, ${listStats.bubbleScreenY.toFixed(0)}  r=${listStats.revealRadiusPx} size=${listStats.bubbleSizePx}`,
-                  `pointers: ${listStats.activePointerCount}  pinch: ${listStats.pinchActive}`,
+                  `activePointerCount: ${listStats.activePointerCount}  tapSuppressedByPinch: ${listStats.tapSuppressedByPinch}`,
+                  `twoFingerDollyActive: ${listStats.twoFingerDollyActive}  twoFingerDollyDeltaY: ${listStats.twoFingerDollyDeltaY.toFixed(1)}  twoFingerDollyTotalY: ${listStats.twoFingerDollyTotalY.toFixed(1)}`,
+                  `twoFingerDollyDeadZonePx: ${listStats.twoFingerDollyDeadZonePx}  twoFingerDollyScale: ${listStats.twoFingerDollyScale}`,
+                  `pinchActive: ${listStats.pinchActive}  pinchDelta: ${listStats.pinchDelta.toFixed(1)}  pinchDollyScale: ${listStats.pinchDollyScale}`,
                   `tapped: ${tappedCard?.instanceId ?? listStats.selectedInstanceId ?? 'none'} src=${tappedCard?.sourceImageId ?? listStats.selectedSourceImageId ?? 'none'}`,
                 ].join('\n')
               : 'listStats: (not mounted — AD_IDLE / ANIMATION)',
@@ -841,7 +845,7 @@ export function App() {
           </button>
         </div>
         <p className="hint">
-          AD_IDLE: tap stage → ANIMATION. ANIMATION: stage tap ignored. PRODUCT_LIST: this window only pan / pinch / Bubble.
+          AD_IDLE: tap stage → ANIMATION. ANIMATION: stage tap ignored. PRODUCT_LIST: this window only 1-finger pan / 2-finger dolly / Bubble.
           Overlay is this monitor only. Hamburger opens Drawer; tap scrim to close (no ×). Keys 1/2/3 Z/H/C X. D/G toggles debug/review. P toggles debug panel. R forces review.
         </p>
         <pre className="debug-pre debug-pre--dump">
@@ -924,7 +928,19 @@ export function App() {
                     sceneSpreadZ: listStats.sceneSpreadZ,
                     textureLoadedCount: listStats.textureLoadedCount,
                     cameraZ: Number(listStats.cameraZ.toFixed(1)),
+                    targetCameraZ: Number(listStats.targetCameraZ.toFixed(1)),
                     dollyVelocity: Number(listStats.dollyVelocity.toFixed(1)),
+                    lastDollyInput: listStats.lastDollyInput,
+                    activePointerCount: listStats.activePointerCount,
+                    twoFingerDollyActive: listStats.twoFingerDollyActive,
+                    twoFingerDollyDeltaY: Number(listStats.twoFingerDollyDeltaY.toFixed(1)),
+                    twoFingerDollyTotalY: Number(listStats.twoFingerDollyTotalY.toFixed(1)),
+                    twoFingerDollyDeadZonePx: listStats.twoFingerDollyDeadZonePx,
+                    twoFingerDollyScale: listStats.twoFingerDollyScale,
+                    pinchActive: listStats.pinchActive,
+                    pinchDelta: Number(listStats.pinchDelta.toFixed(1)),
+                    pinchDollyScale: listStats.pinchDollyScale,
+                    tapSuppressedByPinch: listStats.tapSuppressedByPinch,
                     bubbleVisible: listStats.bubbleVisible,
                     contextLost: listStats.contextLost,
                   }

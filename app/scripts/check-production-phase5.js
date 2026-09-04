@@ -59,7 +59,12 @@ mustContain(path.join(src, 'three', 'exploreController.ts'), [
 ]);
 mustContain(path.join(src, 'ui', 'NoiseOverlay.tsx'), ['listConfig.noiseEnabled']);
 mustContain(path.join(src, 'ui', 'BoxLogo.tsx'), ['stopPropagation']);
-mustContain(path.join(src, 'listConfig.ts'), ['noiseEnabled: true', 'twoFingerVerticalDeadZonePx']);
+mustContain(path.join(src, 'listConfig.ts'), [
+  'noiseEnabled: true',
+  'twoFingerVerticalDeadZonePx',
+  'twoFingerDollyScale',
+  'twoFingerDollyMaxDeltaPx',
+]);
 
 mustContain(
   path.join(__dirname, '..', 'shared', 'productionState.ts'),

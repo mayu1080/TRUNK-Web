@@ -39,6 +39,7 @@
     "check:production-phase7": "node scripts/check-production-phase7.js",
     "check:production-phase71": "node scripts/check-production-phase71.js",
     "check:production-phase72": "node scripts/check-production-phase72.js",
+    "check:production-phase73": "node scripts/check-production-phase73.js",
     "check:production-brand-fonts": "node scripts/check-production-brand-fonts.js"
   },
   "devDependencies": {

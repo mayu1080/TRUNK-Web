@@ -134,6 +134,11 @@ export interface ListDebugStats {
   pinchDistance: number;
   pinchDelta: number;
   pinchDollyScale: number;
+  twoFingerDollyActive: boolean;
+  twoFingerDollyDeltaY: number;
+  twoFingerDollyTotalY: number;
+  twoFingerDollyDeadZonePx: number;
+  twoFingerDollyScale: number;
   lastDollyInput: DollyInputSource;
   tapSuppressedByPinch: boolean;
   selectedInstanceId: string | null;

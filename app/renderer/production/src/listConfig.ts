@@ -50,8 +50,14 @@ export const listConfig = {
   noiseApplyToImageZoom: true,
   noiseApplyToCategoryModal: true,
 
-  /** Session centroid travel before vertical dolly arms. Per-frame jitter still needs > 1.5px. */
-  twoFingerVerticalDeadZonePx: 10,
+  /** Session centroid Y travel before two-finger vertical dolly arms. */
+  twoFingerVerticalDeadZonePx: 12,
+  /** Two-finger vertical swipe impulse vs the previous implicit 1×. Venue: 2–3×. */
+  twoFingerDollyScale: 2.5,
+  /** Per-event |deltaY| cap for two-finger dolly (DOLLY_CRUISE.impulseDeltaCapPx is 160). */
+  twoFingerDollyMaxDeltaPx: 280,
+  /** Pinch distance travel before pinch-dolly arms, only while Y is still inside the vertical dead zone. */
+  twoFingerPinchDeadZonePx: 28,
 } as const;
 
 export type ListConfig = typeof listConfig;

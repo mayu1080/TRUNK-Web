@@ -40,6 +40,9 @@ const TEXTURE_LOAD_CONCURRENCY = 4;
 const CAMERA_Z_EPS = 1.5;
 const FPS_LOG_MS = 2000;
 const TWO_FINGER_VERTICAL_DEAD_ZONE_PX = listConfig.twoFingerVerticalDeadZonePx;
+const TWO_FINGER_PINCH_DEAD_ZONE_PX = listConfig.twoFingerPinchDeadZonePx;
+
+type TwoFingerMode = 'undecided' | 'vertical-dolly' | 'pinch-dolly';
 
 export interface ExploreViewLayout {
   monitorId: number;
@@ -236,7 +239,12 @@ export class ExploreController {
   private pinchDelta = 0;
   private pinchCentroidY = 0;
   private pinchOriginCentroidY = 0;
+  private pinchOriginDistance = 0;
+  private twoFingerMode: TwoFingerMode = 'undecided';
   private twoFingerVerticalArmed = false;
+  private twoFingerDollyActive = false;
+  private twoFingerDollyDeltaY = 0;
+  private twoFingerDollyTotalY = 0;
   private textureOkByScheme = { file: 0, custom: 0, other: 0 };
   private textureFailByScheme = { file: 0, custom: 0, other: 0 };
   private sharedTextures = new Map<string, THREE.Texture>();
@@ -729,14 +737,21 @@ export class ExploreController {
 
   /**
    * Shift+wheel / pinch / 2本指縦 共通の奥行きクルーズ。
-   * 非 pinch: 負 delta（画面上方向 / Shift 上）= 潜る。
+   * 非 pinch: 負 delta（画面上方向 / Shift 上）= 潜る（forward）。
    */
   private applyDollyImpulse(deltaPx: number, source: Exclude<DollyInputSource, 'wheel' | 'none'>): void {
     if (!runtimeConfig.dollyCruiseEnabled) return;
     const direction: 1 | -1 = source === 'pinch' ? (deltaPx > 0 ? 1 : -1) : deltaPx < 0 ? 1 : -1;
-    const mag = Math.min(Math.abs(deltaPx), DOLLY_CRUISE.impulseDeltaCapPx);
-    const pinchScale = source === 'pinch' ? runtimeConfig.pinchDollyScale : 1;
-    const impulse = (mag / 100) * DOLLY_CRUISE.impulsePer100px * runtimeConfig.cameraDollySpeed * pinchScale;
+    const magCap =
+      source === 'two-finger-vertical' ? listConfig.twoFingerDollyMaxDeltaPx : DOLLY_CRUISE.impulseDeltaCapPx;
+    const mag = Math.min(Math.abs(deltaPx), magCap);
+    const scale =
+      source === 'pinch'
+        ? runtimeConfig.pinchDollyScale
+        : source === 'two-finger-vertical'
+          ? listConfig.twoFingerDollyScale
+          : 1;
+    const impulse = (mag / 100) * DOLLY_CRUISE.impulsePer100px * runtimeConfig.cameraDollySpeed * scale;
     this.cruiseVelocityZ += direction > 0 ? -impulse : impulse;
     this.cruiseVelocityZ = clamp(this.cruiseVelocityZ, -DOLLY_CRUISE.maxSpeed, DOLLY_CRUISE.maxSpeed);
     this.lastDollyImpulse = impulse;
@@ -744,9 +759,13 @@ export class ExploreController {
     this.wheelMode = 'dolly-cruise';
   }
 
+  private twoFingerInputHeld(): boolean {
+    return this.pinchActive || this.twoFingerDollyActive;
+  }
+
   private updateDollyMotion(deltaTime: number): void {
     const cfg = DOLLY_CRUISE;
-    const inputHeld = this.shiftHeld || this.pinchActive;
+    const inputHeld = this.shiftHeld || this.twoFingerInputHeld();
     const friction = inputHeld ? cfg.coastFriction : cfg.releaseBrake;
     this.cruiseVelocityZ *= Math.exp(-friction * deltaTime);
 
@@ -761,7 +780,7 @@ export class ExploreController {
   }
 
   private currentFriction(): number {
-    return this.shiftHeld || this.pinchActive ? DOLLY_CRUISE.coastFriction : DOLLY_CRUISE.releaseBrake;
+    return this.shiftHeld || this.twoFingerInputHeld() ? DOLLY_CRUISE.coastFriction : DOLLY_CRUISE.releaseBrake;
   }
 
   private currentPoseSmoothing(): number {
@@ -784,15 +803,19 @@ export class ExploreController {
 
   private beginPinchIfNeeded(): void {
     if (this.pointers.size < 2) return;
-    if (!this.pinchActive) {
+    if (!this.pinchSession) {
       this.pinchDistance = this.pinchDistanceBetween();
       this.pinchDelta = 0;
       this.pinchCentroidY = this.pinchCentroidYBetween();
       this.pinchOriginCentroidY = this.pinchCentroidY;
+      this.pinchOriginDistance = this.pinchDistance;
+      this.twoFingerMode = 'undecided';
       this.twoFingerVerticalArmed = false;
+      this.twoFingerDollyActive = false;
+      this.twoFingerDollyDeltaY = 0;
+      this.twoFingerDollyTotalY = 0;
       this.callbacks.onValidActivity?.();
     }
-    this.pinchActive = true;
     this.pinchSession = true;
     this.tapSuppressedByPinch = true;
   }
@@ -805,7 +828,12 @@ export class ExploreController {
     this.pinchDelta = 0;
     this.pinchCentroidY = 0;
     this.pinchOriginCentroidY = 0;
+    this.pinchOriginDistance = 0;
+    this.twoFingerMode = 'undecided';
     this.twoFingerVerticalArmed = false;
+    this.twoFingerDollyActive = false;
+    this.twoFingerDollyDeltaY = 0;
+    this.twoFingerDollyTotalY = 0;
   }
 
   /** independent: 出現帯はカメラ基準で world 内に畳む。sharedWall: 旧 SCENE_LAYOUT 範囲。 */
@@ -1106,23 +1134,36 @@ export class ExploreController {
     if (this.pointers.size >= 2) {
       this.beginPinchIfNeeded();
       const dist = this.pinchDistanceBetween();
-      const delta = this.pinchDistance > 0 ? dist - this.pinchDistance : 0;
+      const pinchDelta = this.pinchDistance > 0 ? dist - this.pinchDistance : 0;
       const centroidY = this.pinchCentroidYBetween();
       const deltaY = centroidY - this.pinchCentroidY;
-      this.pinchDelta = delta;
-      const pinchMag = Math.abs(delta);
-      const vertMag = Math.abs(deltaY);
-      const sessionVert = Math.abs(centroidY - this.pinchOriginCentroidY);
-      if (pinchMag > vertMag && pinchMag > 1.5) {
-        this.applyDollyImpulse(delta, 'pinch');
-      } else if (this.twoFingerVerticalArmed || sessionVert > TWO_FINGER_VERTICAL_DEAD_ZONE_PX) {
-        if (vertMag > 1.5) {
+      this.pinchDelta = pinchDelta;
+      this.twoFingerDollyDeltaY = deltaY;
+      this.twoFingerDollyTotalY = centroidY - this.pinchOriginCentroidY;
+      const sessionVert = Math.abs(this.twoFingerDollyTotalY);
+      const sessionPinch = Math.abs(dist - this.pinchOriginDistance);
+
+      if (this.twoFingerMode === 'undecided') {
+        if (sessionVert > TWO_FINGER_VERTICAL_DEAD_ZONE_PX) {
+          this.twoFingerMode = 'vertical-dolly';
           this.twoFingerVerticalArmed = true;
+          this.applyDollyImpulse(this.twoFingerDollyTotalY, 'two-finger-vertical');
+        } else if (sessionPinch > TWO_FINGER_PINCH_DEAD_ZONE_PX) {
+          this.twoFingerMode = 'pinch-dolly';
+          this.applyDollyImpulse(dist - this.pinchOriginDistance, 'pinch');
+        }
+      } else if (this.twoFingerMode === 'vertical-dolly') {
+        if (Math.abs(deltaY) >= 0.5) {
           this.applyDollyImpulse(deltaY, 'two-finger-vertical');
         }
+      } else if (Math.abs(pinchDelta) > 1.5) {
+        this.applyDollyImpulse(pinchDelta, 'pinch');
       }
+
       this.pinchDistance = dist;
       this.pinchCentroidY = centroidY;
+      this.pinchActive = this.twoFingerMode === 'pinch-dolly';
+      this.twoFingerDollyActive = this.twoFingerMode === 'vertical-dolly';
       return;
     }
 
@@ -1148,13 +1189,18 @@ export class ExploreController {
     if (this.pointers.size === 0 && this.bubbleVisible) this.scheduleHideBubble();
     if (this.pointers.size < 2) {
       this.pinchActive = false;
+      this.twoFingerDollyActive = false;
       this.pinchDelta = 0;
+      this.twoFingerDollyDeltaY = 0;
     } else {
       this.pinchDistance = this.pinchDistanceBetween();
     }
     if (this.pointers.size === 0) {
       this.pinchSession = false;
       this.pinchDistance = 0;
+      this.twoFingerMode = 'undecided';
+      this.twoFingerVerticalArmed = false;
+      this.twoFingerDollyTotalY = 0;
     }
     if (!p) return;
     const duration = performance.now() - p.startTime;
@@ -1323,6 +1369,9 @@ export class ExploreController {
       pixelRatioCap: runtimeConfig.rendererPixelRatioMax,
       dragging: [...this.pointers.values()].some((p) => p.dragging),
       pinchActive: this.pinchActive,
+      twoFingerDollyActive: this.twoFingerDollyActive,
+      twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
+      twoFingerDollyTotalY: this.twoFingerDollyTotalY,
       wheelMode: this.wheelMode,
       dollyVelocity: this.cruiseVelocityZ,
       lastDollyInput: this.lastDollyInput,
@@ -1377,7 +1426,7 @@ export class ExploreController {
 
   private emitStats(force = false): void {
     const now = performance.now();
-    if (!force && now - this.lastStatsEmitMs < (Math.abs(this.cruiseVelocityZ) > 2 || this.pinchActive ? 80 : 250)) return;
+    if (!force && now - this.lastStatsEmitMs < (Math.abs(this.cruiseVelocityZ) > 2 || this.twoFingerInputHeld() ? 80 : 250)) return;
     this.lastStatsEmitMs = now;
     if (!this.renderer) return;
     const canvas = this.renderer.domElement;
@@ -1460,6 +1509,11 @@ export class ExploreController {
       pinchDistance: this.pinchDistance,
       pinchDelta: this.pinchDelta,
       pinchDollyScale: runtimeConfig.pinchDollyScale,
+      twoFingerDollyActive: this.twoFingerDollyActive,
+      twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
+      twoFingerDollyTotalY: this.twoFingerDollyTotalY,
+      twoFingerDollyDeadZonePx: TWO_FINGER_VERTICAL_DEAD_ZONE_PX,
+      twoFingerDollyScale: listConfig.twoFingerDollyScale,
       lastDollyInput: this.lastDollyInput,
       tapSuppressedByPinch: this.tapSuppressedByPinch,
       selectedInstanceId: this.selectedInstanceId,
