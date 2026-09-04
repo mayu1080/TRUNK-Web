@@ -91,14 +91,12 @@ mustContain(path.join(app, 'electron', 'production', 'displayDump.ts'), [
   'parseProductionFullscreen',
   'parseSiteAutoBounds',
 ]);
-// preview 縮小設定が production 起動に混ざらないこと。
-for (const script of ['start-production.js', 'start-production-site.js']) {
-  mustContain(path.join(app, 'scripts', script), [
-    'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
-    'delete process.env[key]',
-  ]);
-}
-mustContain(path.join(app, 'scripts', 'start-production-site.js'), ['TRUNK_SITE_AUTO_BOUNDS']);
+// preview 縮小設定が production 起動に混ざらないこと。本番起動は site 経路のみ。
+mustContain(path.join(app, 'scripts', 'start-production-site.js'), [
+  'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
+  'delete process.env[key]',
+  'TRUNK_SITE_AUTO_BOUNDS',
+]);
 
 // --- ads split mp4 ----------------------------------------------------------
 mustContain(path.join(app, 'electron', 'production', 'videoPlaylist.ts'), [

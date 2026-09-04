@@ -59,7 +59,7 @@ npm run start:0820-color
 
 **現場プレ実機（Phase 7）の最小手順:** [`docs/production/phase7-site-preflight.md`](../docs/production/phase7-site-preflight.md) → QA [`phase7-site-qa-checklist.md`](../docs/production/phase7-site-qa-checklist.md) → 仕様 [`production-runtime-spec.md`](../docs/production/production-runtime-spec.md)。
 
-本番 4 window は `npm run start:production`（リポジトリ直下 `launch-production.bat`）。管理画面用に 5 つ目の window は出さない。`start:production:preview` は 1 画面 UI 確認専用。
+本番 4 window は `npm run start:production:site`（リポジトリ直下 `launch-production-site.bat`）。`start:production` は同じ site 起動の別名。管理画面用に 5 つ目の window は出さない。`start:production:preview` は 1 画面 UI 確認専用。
 
 Phase 5.15: Category modal は白いカード型ギャラリー（幅は 1window に近づけ、高さは IMAGE_ZOOM より低く）。UI 確認は `npm run start:production:preview`（1 window）。既定は **review** + **frameless**。本番 `start:production` は常に frameless、初期シーンは **AD_IDLE**。single preview のみ LIST 直行（AD / ANIMATION 確認は下記）。`globalScene` / `localOverlay` / 120秒 Non-Touch / content validation は維持。
 
@@ -80,8 +80,8 @@ npm run start:production:preview:single
 # 4window 状態確認（globalScene / overlay independence / monitorId / 120秒 idle）
 npm run start:production:preview:multi
 
-# 本番相当の 4window 起動（実機・本番用。preview env は付けない）
-npm run start:production
+# 本番相当の 4window 起動（現場の正。OS display.bounds、preview env は付けない）
+npm run start:production:site
 ```
 
 single-window preview: monitorId=1、production renderer、**初期シーンは PRODUCT_LIST**（AD_IDLE / ANIMATION をスキップ。LIST / overlay の UI 確認用）。既定は review。`D` / `G` で debug。debug 中は `Show debug` または `P` でパネル。

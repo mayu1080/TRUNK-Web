@@ -17,8 +17,7 @@ production app（`TRUNK_DEMO=production`）の現場仕様。UI 再デザイン�
 
 | # | コマンド | 用途 | 現場 4 面の正か |
 |---|----------|------|-----------------|
-| 1 | `npm run start:production:site` | **現場の第一候補**。JSON の width/height を窓サイズに使わず、OS `display.bounds` に全面配置。Phase 7 現場で 4 面フル画面に成功した経路 | **正（優先）** |
-| 1b | `npm run start:production` | 本番想定。4 BrowserWindow。**AD_IDLE 開始**。preview env を消す。fullscreen 設定は `:site` と同じで維持 | **正** |
+| 1 | `npm run start:production:site` | **現場の正。** JSON の width/height を窓サイズに使わず、OS `display.bounds` に全面配置。Phase 7 現場で 4 面フル画面に成功した経路。`start:production` は同じスクリプトへの別名 | **正** |
 | 2 | `npm run start:production:preview` | 1 画面で UI 確認。**PRODUCT_LIST 直行**（AD_IDLE / ANIMATION をスキップ）。デザイン微修正 | **使わない** |
 | 3 | `npm run start:production:preview:multi` | 4 window 挙動確認。AD_IDLE 開始。本番に近いが preview 扱い。開発 PC で 4 window の状態確認 | **代替にしない** |
 | 4 | `npm run check:production-content` | `content/` の list / food / cover / text / animation / Logo / fonts 等を確認 | 起動前 |
@@ -28,12 +27,12 @@ Windows 現場:
 
 | bat（リポジトリ直下） | 中身 |
 |----------------------|------|
-| `launch-production.bat` | `app` へ移動 → `npm run start:production` → `pause` |
+| `launch-production-site.bat` | **現場の正。** `app` へ移動 → `npm run start:production:site` → `pause` |
 | `launch-production-preview.bat` | `app` へ移動 → `npm run start:production:preview` → `pause` |
 | `check-production-content.bat` | `app` へ移動 → `npm run check:production-content` → `pause` |
 | `build-production.bat` | `app` へ移動 → `npm run build` → `npm run build:production` → `pause` |
 
-**本番確認は `npm run start:production:site`（または `launch-production-site.bat`）を優先し、次に `npm run start:production`。** preview を現場 4 面の合格判定に使わない。
+**本番確認は `npm run start:production:site`（または `launch-production-site.bat`）。** 旧 `launch-production.bat`（JSON サイズで窓合わせ）は削除済み。preview を現場 4 面の合格判定に使わない。
 
 ---
 
@@ -50,7 +49,7 @@ Phase 7 現場で 4 面フル画面に成功した設定。**この 4 点は壊�
 
 - `workArea` を使うとタスクバー分だけ縦が短くなるので、現場では `display.bounds` を正とする
 - portrait 指定なのに Electron が landscape DIP を返し、かつ rotation 90/270 のときは幅高を swap する
-- `start:production` / `start:production:site` は `TRUNK_PRODUCTION_PREVIEW_*` を削除し、`TRUNK_PRODUCTION_FORCE_NO_PREVIEW=1` を立てる。**preview 縮小設定は production 起動に混ざらない**
+- `start:production:site`（と別名 `start:production`）は `TRUNK_PRODUCTION_PREVIEW_*` を削除し、`TRUNK_PRODUCTION_FORCE_NO_PREVIEW=1` と `TRUNK_SITE_AUTO_BOUNDS=1` を立てる。**preview 縮小設定は production 起動に混ざらない**
 - fullscreen は preview / dev fallback では無効。`TRUNK_PRODUCTION_FULLSCREEN=0` で明示的に切れる（現場では触らない）
 - 管理画面は leftover display に別窓。**production window は 4 枚だけ**
 

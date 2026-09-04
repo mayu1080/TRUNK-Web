@@ -70,14 +70,16 @@ for (const rel of siteDocs) {
   if (!fs.existsSync(abs)) fail(`missing ${rel}`);
 }
 mustContain(path.join(root, 'docs/production/production-runtime-spec.md'), [
-  'npm run start:production',
+  'npm run start:production:site',
   '管理画面は 5 枚目の production window ではない',
   '120 秒 Non-Touch は 4 面全体判定',
 ]);
 mustContain(path.join(root, 'README.md'), ['docs/production/phase7-site-preflight.md']);
 
+if (fs.existsSync(path.join(root, 'launch-production.bat'))) {
+  fail('launch-production.bat was removed; canonical launcher is launch-production-site.bat');
+}
 const siteBats = [
-  ['launch-production.bat', 'npm run start:production'],
   ['launch-production-site.bat', 'npm run start:production:site'],
   ['launch-production-preview.bat', 'npm run start:production:preview'],
   ['check-production-content.bat', 'npm run check:production-content'],
@@ -118,8 +120,18 @@ mustContain(path.join(app, 'electron', 'main.ts'), [
   'setFullScreen',
   'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
 ]);
-mustContain(path.join(app, 'scripts', 'start-production.js'), ['TRUNK_PRODUCTION_FORCE_NO_PREVIEW', 'delete process.env[key]']);
-mustContain(path.join(app, 'scripts', 'start-production-site.js'), ['TRUNK_SITE_AUTO_BOUNDS']);
+mustContain(path.join(app, 'package.json'), [
+  '"start:production": "npm run build:production && node scripts/start-production-site.js"',
+  '"start:production:site": "npm run build:production && node scripts/start-production-site.js"',
+]);
+mustContain(path.join(app, 'scripts', 'start-production-site.js'), [
+  'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
+  'delete process.env[key]',
+  'TRUNK_SITE_AUTO_BOUNDS',
+]);
+if (fs.existsSync(path.join(app, 'scripts', 'start-production.js'))) {
+  fail('start-production.js was folded into start-production-site.js');
+}
 mustNotContain(path.join(src, 'overlays', 'CategoryModal.tsx'), ['category-modal__dots']);
 mustContain(path.join(src, 'overlays', 'CategoryModal.tsx'), ['stopScrollLeak']);
 mustContain(path.join(app, 'shared', 'idleConfig.ts'), ['PRODUCTION_SHELL_IDLE_TIMEOUT_SECONDS = 120']);

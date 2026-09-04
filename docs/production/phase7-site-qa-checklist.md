@@ -1,6 +1,6 @@
 # Phase 7 現場プレ実機 — 起動後 QA checklist
 
-`npm run start:production`（`launch-production.bat`）で実施する。preview 起動での合格は無効。
+`npm run start:production:site`（`launch-production-site.bat`）で実施する。preview 起動での合格は無効。
 
 仕様: [`production-runtime-spec.md`](./production-runtime-spec.md)。起動前: [`phase7-site-preflight.md`](./phase7-site-preflight.md)。
 

@@ -17,7 +17,7 @@
 3. USB の `content/` をリポジトリ直下に載せる（画像・動画・フォント・Logo・text）
 4. **`app` と `app/renderer/production` の 2 か所**でモジュールを入れる
 5. `app` で `npm run start:production:preview`（1 画面確認）
-6. 4 面本番は `npm run start:production`（または `launch-production.bat`）
+6. 4 面本番は `npm run start:production:site`（または `launch-production-site.bat`）
 
 **使わない:** `npm run dev`。Vite だけ、または本番 4 画面ではない Electron が立ち上がる。型エラーはこれでは直らない。
 

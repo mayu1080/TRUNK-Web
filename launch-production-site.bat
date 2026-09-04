@@ -6,7 +6,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Starting production SITE mode (OS display.bounds, preview env cleared)...
+echo Starting canonical production (OS display.bounds, preview env cleared)...
 call npm run start:production:site
 echo.
 pause

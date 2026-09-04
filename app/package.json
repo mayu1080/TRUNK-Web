@@ -16,7 +16,7 @@
     "build:0820-color": "npm --prefix renderer/demo-0820-color run build",
     "start:0820-color": "npm run build:0820-color && node scripts/start-demo-0820-color.js",
     "build:production": "npm --prefix renderer/production run build",
-    "start:production": "npm run build:production && node scripts/start-production.js",
+    "start:production": "npm run build:production && node scripts/start-production-site.js",
     "start:production:site": "npm run build:production && node scripts/start-production-site.js",
     "start:production:preview": "npm run build:production && node scripts/start-production-preview.js single",
     "start:production:preview:single": "npm run build:production && node scripts/start-production-preview.js single",

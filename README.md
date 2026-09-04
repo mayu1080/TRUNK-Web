@@ -29,7 +29,7 @@ production app の現場確認は **4 タッチ画面 + 管理画面**。管理�
 | 起動後 QA | [`docs/production/phase7-site-qa-checklist.md`](docs/production/phase7-site-qa-checklist.md) |
 | 仕様固定メモ（4 面同期 / overlay / 120 秒 idle） | [`docs/production/production-runtime-spec.md`](docs/production/production-runtime-spec.md) |
 
-現場メイン起動: リポジトリ直下 `launch-production.bat`、または `cd app` → `npm run start:production`。preview は 4 面合格の代替にしない。
+現場メイン起動: リポジトリ直下 `launch-production-site.bat`、または `cd app` → `npm run start:production:site`。preview は 4 面合格の代替にしない。
 
 現場クローンは `LIST_demo` を含まない `feature/production-phase7` を浅く取る（`content/` 実素材は USB）:
 

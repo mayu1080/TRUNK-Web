@@ -29,7 +29,7 @@
 | `animation.json` | 入場演出の紐づけ（`animation/monitor-N.mp4`）。`skipOnTouch` は無視（常に false） |
 | `ads/` / `animation/` | 各 monitor 用 mp4。json のファイル名が無くても、フォルダ内の mp4 を割り当てる。1 本だけなら 4 面共通。欠落時はプレースホルダ（`fatalIfMissing` 既定 false） |
 | `noise/` | LIST / ZOOM / Category modal 用のフィルムグレイン動画（mp4）。欠落時は DOM grain fallback |
-| `monitor-layout.json` | 本番 4 画面の bounds / viewport offset（`npm run start:production` で必須） |
+| `monitor-layout.json` | 本番 4 画面の monitorId / 照合用 bounds（`npm run start:production:site` で必須。窓サイズ自体は OS `display.bounds`） |
 
 本番差し替え後の LIST 用は `images/list/` を正とする。空のときは `images/` 再帰スキャン（現行）。投入ルールと validation は [`docs/production/production-content-intake.md`](../docs/production/production-content-intake.md)。
 

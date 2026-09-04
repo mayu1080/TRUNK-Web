@@ -4,7 +4,7 @@
 
 会場で起動する前の確認。仕様の正は [`production-runtime-spec.md`](./production-runtime-spec.md)。起動後は [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md)。
 
-**合格の前提:** 本番確認は `npm run start:production:site`（または `launch-production-site.bat`）を優先。次に `npm run start:production`（`launch-production.bat`）。どちらも frameless + `display.bounds` + `setFullScreen(true)` は同じ。管理画面は 5 枚目の production window ではない。
+**合格の前提:** 本番確認は `npm run start:production:site`（または `launch-production-site.bat`）。JSON サイズで窓を合わせる旧 `launch-production.bat` は使わない。frameless + `display.bounds` + `setFullScreen(true)`。管理画面は 5 枚目の production window ではない。
 
 ---
 
@@ -42,8 +42,8 @@ git clone --single-branch --depth 1 -b feature/production-phase7 https://github.
 - [ ] `npm run check:production-content` が通る（`check-production-content.bat`）
 - [ ] `npm run build` と `npm run build:production` が通る（`build-production.bat`）
 - [ ] `content/monitor-layout.json` が現場構成に合っている（下の手順）
-- [ ] `npm run start:production:site` で起動できる（`launch-production-site.bat`）＝**現場の第一候補**
-- [ ] `npm run start:production`（`launch-production.bat`）でも 4 面フル画面になる。preview 用の環境変数が残っていないこと
+- [ ] `npm run start:production:site` で起動できる（`launch-production-site.bat`）＝**現場の正**
+- [ ] preview 用の環境変数が残っていないこと（`start:production` は site と同じスクリプト）
 
 どちらも PowerShell に残った `TRUNK_PRODUCTION_PREVIEW_*` を消し、`TRUNK_PRODUCTION_FORCE_NO_PREVIEW=1` を立ててから起動する。現場 4 面で preview scale を使わない。
 
@@ -138,7 +138,7 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 
 ### Fullscreen
 
-- 現場正コマンドは `start:production:site` 優先。`start:production` も同じ fullscreen 設定
+- 現場正コマンドは `start:production:site`。`start:production` は同じ site スクリプトの別名
 - window bounds は `workArea` ではなく **`display.bounds`**
 - frameless（`frame: false`）＋ `setFullScreen(true)`。kiosk は未使用（`isKiosk` は false）
 - 管理画面は production window の対象外（leftover display に管理窓）
@@ -180,7 +180,7 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 
 ### 4 window が出ない
 
-1. `npm run start:production` か確認（`start:production:preview` は 1 window）
+1. `npm run start:production:site` か確認（`start:production:preview` は 1 window）
 2. `start:production:preview:multi` は preview 配置。現場の正ではない
 3. Windows でディスプレイが 4 面見えているか
 4. `content/monitor-layout.json` が読めるか（無いと production は起動失敗）
@@ -256,5 +256,5 @@ check が warning でも起動はできることがある。LIST が空・mp4 �
 1. 本 preflight の Windows 側をチェック
 2. `check-production-content.bat`
 3. 必要なら `build-production.bat`
-4. `launch-production-site.bat`（=`npm run start:production:site`）。ダメなら `launch-production.bat`
+4. `launch-production-site.bat`（=`npm run start:production:site`）
 5. [`phase7-site-qa-checklist.md`](./phase7-site-qa-checklist.md) と上の「Phase 7 現場再確認項目」を実施
