@@ -53,7 +53,7 @@ mustContain(path.join(src, 'drawerMotion.ts'), [
 mustContain(path.join(src, 'ui', 'CategoryDrawer.tsx'), ['DRAWER_MOTION', 'requestAnimationFrame', 'is-open']);
 mustContain(path.join(src, 'styles.css'), [
   'cubic-bezier(0.32, 0, 0.58, 0.02)',
-  'translateX(12px)',
+  'translateX(100%)',
   'font-weight: 300',
   'clamp(160px, 20vh, 300px)',
   'min-height: 8.2em',

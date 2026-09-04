@@ -11,7 +11,7 @@ import type {
 } from './productionApi';
 import { ExploreHost } from './three/ExploreHost';
 import type { ExploreViewLayout } from './three/exploreController';
-import type { ImageZoomLoadStatus, ListDebugStats, SelectedDemoCard } from './types';
+import type { ContentLoadStatus, ImageZoomLoadStatus, ListDebugStats, SelectedDemoCard } from './types';
 import { CategoryDrawer } from './ui/CategoryDrawer';
 import { HamburgerButton } from './ui/HamburgerButton';
 import { ImageZoomOverlay } from './overlays/ImageZoomOverlay';
@@ -25,7 +25,7 @@ import { IMAGE_ZOOM_MOTION } from './imageZoomMotion';
 import { CATEGORY_MODAL_MOTION, SQUARE_LOGO_RELATIVE_PATH } from './categoryModalMotion';
 import { loadMaisonNeue, type BrandFontStatus } from './loadBrandFonts';
 import { isDebugMode, type UiDisplayMode } from './uiMode';
-import type { ContentLoadStatus } from './types';
+import { collectViewportDebug, type ViewportDebugDump } from './viewportDebug';
 
 const sceneCopy = {
   AD_IDLE: {
@@ -88,10 +88,20 @@ export function App() {
   const [preloadReadyBeforeListEnter, setPreloadReadyBeforeListEnter] = useState<boolean | null>(null);
   const [brandFont, setBrandFont] = useState<BrandFontStatus | null>(null);
   const [sharedCopy, setSharedCopy] = useState<SharedCopyInfo | null>(null);
-  const [videoElementDebug, setVideoElementDebug] = useState<{ readyState: number; durationMs: number | null }>({
+  const [videoElementDebug, setVideoElementDebug] = useState<{
+    readyState: number;
+    durationMs: number | null;
+    currentTime: number;
+    ended: boolean;
+    loop: boolean;
+  }>({
     readyState: 0,
     durationMs: null,
+    currentTime: 0,
+    ended: false,
+    loop: false,
   });
+  const [viewportDebug, setViewportDebug] = useState<ViewportDebugDump | null>(null);
   const debugInitRef = useRef(false);
   const snapshotRef = useRef<ProductionSnapshot | null>(null);
   snapshotRef.current = snapshot;
@@ -326,7 +336,7 @@ export function App() {
     };
   }, [snapshot?.own.localOverlay, snapshot?.own.selectedCategoryId]);
 
-  // Debug 用。ads / animation の <video> readyState と尺を拾うだけで、再生制御はしない。
+  // Debug 用。ads / animation の <video> 状態を拾うだけで、再生制御はしない。
   const videoElementMounted = snapshot != null;
   useEffect(() => {
     const el = videoRef.current;
@@ -335,13 +345,18 @@ export function App() {
       setVideoElementDebug({
         readyState: el.readyState,
         durationMs: Number.isFinite(el.duration) && el.duration > 0 ? Math.round(el.duration * 1000) : null,
+        currentTime: Number.isFinite(el.currentTime) ? el.currentTime : 0,
+        ended: el.ended,
+        loop: el.loop,
       });
     };
-    const events = ['loadedmetadata', 'canplay', 'playing', 'pause', 'ended', 'emptied', 'error'];
+    const events = ['loadedmetadata', 'canplay', 'playing', 'pause', 'ended', 'emptied', 'error', 'timeupdate'];
     for (const name of events) el.addEventListener(name, sample);
+    const timer = window.setInterval(sample, 500);
     sample();
     return () => {
       for (const name of events) el.removeEventListener(name, sample);
+      window.clearInterval(timer);
     };
   }, [videoElementMounted]);
 
@@ -350,12 +365,19 @@ export function App() {
     const video = snapshot?.video;
     if (!el || !video) return;
     const show = snapshot.globalScene !== 'PRODUCT_LIST' && video.scene !== 'none' && video.track.found && video.track.url;
+    const adsLoop = snapshot.globalScene === 'AD_IDLE' && Boolean(video.loop);
     const onEnded = () => {
       const current = snapshotRef.current;
+      if (current?.globalScene === 'AD_IDLE' && current.video.loop) {
+        el.currentTime = 0;
+        void el.play().catch(() => {});
+        return;
+      }
       if (current?.globalScene !== 'ANIMATION') return;
       void dispatch({ type: 'ANIMATION_COMPLETE' });
     };
     el.addEventListener('ended', onEnded);
+    el.loop = adsLoop;
     if (!show) {
       el.hidden = true;
       el.removeAttribute('src');
@@ -369,15 +391,20 @@ export function App() {
       return () => el.removeEventListener('ended', onEnded);
     }
     lastVideoKeyRef.current = key;
-    el.loop = Boolean(video.loop);
     el.muted = true;
     el.src = video.track.url!;
     const elapsedMs = Math.max(0, Date.now() - video.startedAtMs);
-    let seek = elapsedMs / 1000;
-    if (video.loop && video.durationMs > 0) seek = (elapsedMs % video.durationMs) / 1000;
     const applyClock = () => {
+      const mediaMs =
+        Number.isFinite(el.duration) && el.duration > 0 ? el.duration * 1000 : video.durationMs;
+      let seek = elapsedMs / 1000;
+      if (adsLoop && mediaMs > 0) seek = (elapsedMs % mediaMs) / 1000;
       if (Number.isFinite(el.duration) && el.duration > 0) {
-        el.currentTime = Math.min(seek, Math.max(0, el.duration - 0.05));
+        if (adsLoop) {
+          el.currentTime = seek % el.duration;
+        } else {
+          el.currentTime = Math.min(seek, Math.max(0, el.duration - 0.05));
+        }
       }
       void el.play().catch(() => {});
     };
@@ -385,6 +412,35 @@ export function App() {
     el.load();
     return () => el.removeEventListener('ended', onEnded);
   }, [dispatch, snapshot]);
+
+  useEffect(() => {
+    const sample = () => {
+      const dump = collectViewportDebug({
+        monitorId: snapshotRef.current?.monitorId ?? null,
+        localOverlay: snapshotRef.current?.own.localOverlay ?? 'NONE',
+        cameraAspect: listStats?.cameraAspect ?? null,
+      });
+      setViewportDebug(dump);
+      if (
+        dump.overflow.widthMismatchWarning ||
+        dump.overflow.drawerOverflowsRight ||
+        dump.overflow.imageZoomOverflows ||
+        dump.overflow.categoryModalOverflows
+      ) {
+        console.warn('[production] viewport overflow', dump.overflow, {
+          innerWidth: dump.innerWidth,
+          documentElementClientWidth: dump.documentElementClientWidth,
+          canvasClientWidth: dump.canvasClientWidth,
+          categoryDrawerRight: dump.categoryDrawerRect?.right ?? null,
+          imageZoomCardRight: dump.imageZoomCardRect?.right ?? null,
+          categoryModalRight: dump.categoryModalRect?.right ?? null,
+        });
+      }
+    };
+    sample();
+    const timer = window.setInterval(sample, 1000);
+    return () => window.clearInterval(timer);
+  }, [snapshot?.monitorId, snapshot?.own.localOverlay, listStats?.canvasCssWidth, listStats?.cameraAspect]);
 
   const exploreLayout: ExploreViewLayout | null = useMemo(() => {
     if (!snapshot) return null;
@@ -625,6 +681,7 @@ export function App() {
             `adsVideoMode: ${adsVideoMode ?? '—'}  adsVideoFile: ${adsVideoFile ?? '—'}  found: ${video.track.found}`,
             `adsVideoFiles: ${adsVideoFiles.join(', ') || '—'}`,
             `adsVideoDuration: ${adsVideoDurationMs ?? '—'}ms  media: ${videoElementDebug.durationMs ?? '—'}ms  adsVideoReadyState: ${videoElementDebug.readyState}`,
+            `adsVideoLoop: ${video.loop}  video.loop: ${videoElementDebug.loop}  video.currentTime: ${videoElementDebug.currentTime.toFixed(2)}  video.ended: ${videoElementDebug.ended}`,
             `animationVideoMode: ${contentValidation?.animationVideoMode ?? '—'}  animationVideoFiles: ${(contentValidation?.animationVideoFiles ?? []).join(', ') || (video.track.found ? video.track.relativePath : 'missing')}`,
             `fontsDir: ${contentValidation?.fontsDirExists ?? '—'}  fontFileCount: ${contentValidation?.fontFileCount ?? '—'}`,
             `noiseOpacity: ${listConfig.noiseOpacity}  logo: ${logo?.fileName ?? 'missing'}`,
@@ -634,6 +691,17 @@ export function App() {
             `viewportOffset: ${layout.viewportOffsetX}, ${layout.viewportOffsetY}  layout.scale=${layout.scale}`,
             `orientation: ${layout.orientation}  config ${layout.width}x${layout.height}`,
             `windowBounds: ${layout.windowBounds.width}x${layout.windowBounds.height}`,
+            viewportDebug
+              ? [
+                  `viewport inner: ${viewportDebug.innerWidth}x${viewportDebug.innerHeight}  outer: ${viewportDebug.outerWidth}x${viewportDebug.outerHeight}  screen: ${viewportDebug.screenX},${viewportDebug.screenY}`,
+                  `documentElement: ${viewportDebug.documentElementClientWidth}x${viewportDebug.documentElementClientHeight}  body: ${viewportDebug.bodyClientWidth}x${viewportDebug.bodyClientHeight}  dpr ${viewportDebug.devicePixelRatio}`,
+                  `visualViewport: ${viewportDebug.visualViewportWidth ?? '—'}x${viewportDebug.visualViewportHeight ?? '—'}`,
+                  `appRoot: ${viewportDebug.appRootRect ? `${viewportDebug.appRootRect.width}x${viewportDebug.appRootRect.height} right=${viewportDebug.appRootRect.right}` : '—'}  stage: ${viewportDebug.stageRect ? `${viewportDebug.stageRect.width}x${viewportDebug.stageRect.height}` : '—'}`,
+                  `canvas.client: ${viewportDebug.canvasClientWidth ?? '—'}x${viewportDebug.canvasClientHeight ?? '—'}  canvas.rect.right=${viewportDebug.canvasRect?.right ?? '—'}  camera.aspect=${(viewportDebug.cameraAspect ?? listStats?.cameraAspect ?? 0).toFixed(4)}`,
+                  `overflow: inner~1080=${viewportDebug.overflow.innerWidthNear1080}  docWider=${viewportDebug.overflow.documentWiderThanInner}  canvasWider=${viewportDebug.overflow.canvasWiderThanInner}  widthMismatch=${viewportDebug.overflow.widthMismatchWarning}`,
+                  `drawer.right=${viewportDebug.categoryDrawerRect?.right ?? '—'} overflow=${viewportDebug.overflow.drawerOverflowsRight}  zoomCard.right=${viewportDebug.imageZoomCardRect?.right ?? '—'} overflow=${viewportDebug.overflow.imageZoomOverflows}  modal.right=${viewportDebug.categoryModalRect?.right ?? '—'} overflow=${viewportDebug.overflow.categoryModalOverflows}`,
+                ].join('\n')
+              : 'viewportDebug: sampling…',
             `devicePixelRatio: ${window.devicePixelRatio}`,
             listStats
               ? [
@@ -755,6 +823,11 @@ export function App() {
               adsVideoDurationMs,
               adsVideoMediaDurationMs: videoElementDebug.durationMs,
               adsVideoReadyState: videoElementDebug.readyState,
+              adsVideoLoop: video.loop,
+              videoLoop: videoElementDebug.loop,
+              videoCurrentTime: Number(videoElementDebug.currentTime.toFixed(2)),
+              videoEnded: videoElementDebug.ended,
+              viewport: viewportDebug,
               animationVideoMode: contentValidation?.animationVideoMode ?? null,
               animationVideoFiles: contentValidation?.animationVideoFiles ?? null,
               runtime: {

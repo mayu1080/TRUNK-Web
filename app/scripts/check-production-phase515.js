@@ -40,9 +40,9 @@ const src = path.join(__dirname, '..', 'renderer', 'production', 'src');
 
 mustContain(path.join(src, 'styles.css'), [
   'flex: 0 0 76%',
-  'width: 100vw',
+  'width: 100%',
   'height: 71vh',
-  'max-height: 71vh',
+  'max-height: min(71vh, calc(100% - 24px))',
   'clamp(78px, 9.6vh, 108px)',
   'overscroll-behavior: contain',
   'touch-action: pan-y',
@@ -58,8 +58,8 @@ mustContain(path.join(src, 'overlays', 'ImageZoomOverlay.tsx'), [
   'image-zoom-overlay__card',
 ]);
 mustContain(path.join(src, 'styles.css'), [
-  'height: min(80vh, 1320px)',
-  'width: min(84vw, 760px)',
+  'height: min(80%, 1320px)',
+  'width: min(84%, 760px)',
 ]);
 mustContain(path.join(src, 'ui', 'CategoryDrawer.tsx'), ['DRAWER_MOTION']);
 mustContain(path.join(__dirname, '..', 'shared', 'idleConfig.ts'), ['PRODUCTION_SHELL_IDLE_TIMEOUT_SECONDS = 120']);

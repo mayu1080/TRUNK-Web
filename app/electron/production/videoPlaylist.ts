@@ -214,8 +214,8 @@ export function loadVideoPlaylist(
   let safetyCapMs = asPositiveMs(raw?.safetyCapMs, durationMs + 2000);
   let endPolicy: VideoPlaylist['endPolicy'] = 'duration';
 
+  const mediaMs = maxFoundTrackDurationMs(contentRoot, tracks);
   if (kind === 'animation') {
-    const mediaMs = maxFoundTrackDurationMs(contentRoot, tracks);
     if (mediaMs != null) {
       durationMs = mediaMs;
       safetyCapMs = mediaMs + 2500;
@@ -225,6 +225,10 @@ export function loadVideoPlaylist(
       endPolicy = 'media-ended';
       warnings.push('animation mp4 duration could not be read; waiting for ended + 20s safety cap');
     }
+  } else if (kind === 'ads' && mediaMs != null) {
+    // AD_IDLE loop の 4 面同期は実尺で回す。json の 15000ms は fallback のみ。
+    durationMs = mediaMs;
+    safetyCapMs = mediaMs;
   }
 
   const playlist: VideoPlaylist = {
