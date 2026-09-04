@@ -32,6 +32,7 @@ import {
   parseProductionFullscreen,
   parseSiteAutoBounds,
 } from './production/displayDump';
+import { applyFixedMonitorWindowStack } from './production/windowStack';
 import { resolveNoiseAsset } from './production/noiseAsset';
 import { ProductionStateCoordinator } from './production/productionStateCoordinator';
 import { loadVideoPlaylist, videoPlaylistMode } from './production/videoPlaylist';
@@ -71,6 +72,8 @@ let productionPlacement: ReturnType<typeof resolveWindowPlacement> | null = null
 let productionAds: VideoPlaylist | null = null;
 let productionAnimation: VideoPlaylist | null = null;
 let productionLayoutPath = '';
+let productionStackTimer: ReturnType<typeof setTimeout> | null = null;
+let productionStackApplying = false;
 
 function logEvent(event: LogEvent): void {
   const prefix = `[${event.level}]`;
@@ -333,6 +336,38 @@ function attachWindow(
   return win;
 }
 
+function productionStackVerbose(): boolean {
+  return !app.isPackaged;
+}
+
+function applyProductionWindowStackNow(reason: string, monitorId?: number, forceLog = false): void {
+  if (productionStackApplying) return;
+  productionStackApplying = true;
+  try {
+    applyFixedMonitorWindowStack(monitorWindows, {
+      reason,
+      monitorId,
+      verbose: forceLog || productionStackVerbose(),
+    });
+  } finally {
+    productionStackApplying = false;
+  }
+}
+
+function scheduleProductionWindowStack(reason: string, monitorId?: number, forceLog = false): void {
+  if (productionStackTimer) clearTimeout(productionStackTimer);
+  productionStackTimer = setTimeout(() => {
+    productionStackTimer = null;
+    applyProductionWindowStackNow(reason, monitorId, forceLog);
+  }, 0);
+}
+
+function bindProductionWindowStack(win: BrowserWindow, monitorId: number): void {
+  win.on('focus', () => {
+    scheduleProductionWindowStack('focus', monitorId);
+  });
+}
+
 function applySiteWindowChrome(
   win: BrowserWindow,
   monitorId: number,
@@ -419,6 +454,7 @@ function applySiteWindowChrome(
       }
     }
     logFinal('ready-to-show');
+    scheduleProductionWindowStack('ready-to-show', monitorId);
   });
 }
 
@@ -758,6 +794,7 @@ function startProductionShell(): void {
       `TRUNK ${placement.isPreviewMode ? previewTitle : 'production'} (monitor ${row.monitorId})`,
       chromeOptions,
     );
+    bindProductionWindowStack(win, row.monitorId);
     if (!placement.isPreviewMode) {
       applySiteWindowChrome(
         win,
@@ -771,6 +808,8 @@ function startProductionShell(): void {
     }
     win.loadFile(indexPath);
   }
+
+  scheduleProductionWindowStack('startup', undefined, true);
 
   openManagementConsole();
 

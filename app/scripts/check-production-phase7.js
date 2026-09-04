@@ -119,6 +119,14 @@ mustContain(path.join(app, 'electron', 'main.ts'), [
   '[display dump]',
   'setFullScreen',
   'TRUNK_PRODUCTION_FORCE_NO_PREVIEW',
+  'scheduleProductionWindowStack',
+  "scheduleProductionWindowStack('startup'",
+]);
+mustContain(path.join(app, 'electron', 'production', 'windowStack.ts'), [
+  'FIXED_MONITOR_STACK_ORDER = [1, 2, 3, 4]',
+  'win.moveTop()',
+  '[WINDOW_STACK]',
+  '1 < 2 < 3 < 4',
 ]);
 mustContain(path.join(app, 'package.json'), [
   '"start:production": "npm run build:production && node scripts/start-production-site.js"',
