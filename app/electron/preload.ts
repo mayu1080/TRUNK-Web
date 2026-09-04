@@ -51,6 +51,27 @@ const trunkApi: TrunkApi = {
       ipcRenderer.removeListener('trunk:production-state-changed', handler);
     };
   },
+  reportBubbleState: (state: { bubbleVisible: boolean }) => {
+    ipcRenderer.send('trunk:reportBubbleState', state);
+  },
+  onBubbleAggregate: (
+    callback: (payload: {
+      activeBubbleCount: number;
+      byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
+    }) => void,
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: {
+        activeBubbleCount: number;
+        byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
+      },
+    ) => callback(payload);
+    ipcRenderer.on('trunk:bubble-aggregate', handler);
+    return () => {
+      ipcRenderer.removeListener('trunk:bubble-aggregate', handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld('trunkApi', trunkApi);

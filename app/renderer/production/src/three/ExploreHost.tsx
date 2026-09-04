@@ -106,7 +106,7 @@ export function ExploreHost({
         data-monitor-id={layout.monitorId}
         style={{ pointerEvents: interactionEnabled ? 'auto' : 'none' }}
       />
-      <BubbleOverlay getState={getBubbleState} />
+      <BubbleOverlay getState={getBubbleState} monitorId={layout.monitorId} />
     </>
   );
 }

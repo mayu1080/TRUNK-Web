@@ -59,8 +59,18 @@ const MONITOR_COUNT = DEMO_0820_FAMILY
     : Math.max(1, Math.min(4, Number(process.env.TRUNK_MONITOR_COUNT) || 4));
 const MONITOR_IDS = Array.from({ length: MONITOR_COUNT }, (_, i) => i + 1);
 
+if (PRODUCTION_SHELL) {
+  // Chromium overscroll / history swipe only. Does not stop Windows Shell 3-finger Task View.
+  app.commandLine.appendSwitch('overscroll-history-navigation', '0');
+  app.commandLine.appendSwitch(
+    'disable-features',
+    'OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation',
+  );
+}
+
 const monitorWindows = new Map<number, BrowserWindow>();
 const webContentsToMonitor = new Map<number, number>();
+const bubbleVisibleByMonitor = new Map<number, boolean>();
 
 let stateCoordinator: StateCoordinator | null = null;
 let productionCoordinator: ProductionStateCoordinator | null = null;
@@ -87,12 +97,36 @@ function logEvent(event: LogEvent): void {
   }
 }
 
-function resolveMonitorId(event: Electron.IpcMainInvokeEvent): number {
+function resolveMonitorId(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): number {
   const id = webContentsToMonitor.get(event.sender.id);
   if (id === undefined) {
     throw new Error('Unknown renderer: monitorId not registered');
   }
   return id;
+}
+
+function activeBubbleCount(): number {
+  return [...bubbleVisibleByMonitor.values()].filter(Boolean).length;
+}
+
+function currentBubbleAggregate(): {
+  activeBubbleCount: number;
+  byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
+} {
+  return {
+    activeBubbleCount: activeBubbleCount(),
+    byMonitor: MONITOR_IDS.map((id) => ({
+      monitorId: id,
+      bubbleVisible: bubbleVisibleByMonitor.get(id) ?? false,
+    })),
+  };
+}
+
+function broadcastBubbleAggregate(): void {
+  const payload = currentBubbleAggregate();
+  for (const win of monitorWindows.values()) {
+    if (!win.isDestroyed()) win.webContents.send('trunk:bubble-aggregate', payload);
+  }
 }
 
 function broadcastState(monitorId: number): void {
@@ -247,6 +281,19 @@ function registerProductionIpc(): void {
   });
 
   ipcMain.handle('trunk:getManagementStatus', () => currentManagementStatus());
+
+  ipcMain.on('trunk:reportBubbleState', (event, payload: { bubbleVisible?: boolean } | undefined) => {
+    let monitorId: number;
+    try {
+      monitorId = resolveMonitorId(event);
+    } catch {
+      return;
+    }
+    const next = Boolean(payload?.bubbleVisible);
+    if (bubbleVisibleByMonitor.get(monitorId) === next) return;
+    bubbleVisibleByMonitor.set(monitorId, next);
+    broadcastBubbleAggregate();
+  });
 }
 
 function resolveDemo0820Index(): string {
@@ -331,6 +378,9 @@ function attachWindow(
   win.on('closed', () => {
     monitorWindows.delete(monitorId);
     webContentsToMonitor.delete(win.webContents.id);
+    if (bubbleVisibleByMonitor.delete(monitorId)) {
+      broadcastBubbleAggregate();
+    }
   });
 
   return win;

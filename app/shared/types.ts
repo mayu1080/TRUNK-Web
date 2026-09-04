@@ -224,6 +224,13 @@ export interface TrunkApi {
   getProductionDump(): Promise<ProductionDump>;
   dispatchProduction(action: ProductionAction): Promise<ProductionSnapshot>;
   onProductionStateChanged(callback: (snapshot: ProductionSnapshot) => void): () => void;
+  reportBubbleState(state: { bubbleVisible: boolean }): void;
+  onBubbleAggregate(
+    callback: (payload: {
+      activeBubbleCount: number;
+      byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
+    }) => void,
+  ): () => void;
 }
 
 declare global {

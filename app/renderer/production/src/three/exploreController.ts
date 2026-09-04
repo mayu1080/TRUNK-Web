@@ -246,6 +246,10 @@ export class ExploreController {
   private twoFingerDollyTotalY = 0;
   private tapSuppressedByTwoFinger = false;
   private tapSuppressedByMultiTouch = false;
+  /** TouchEvent.touches.length — Windows may omit 2nd/3rd PointerEvents. */
+  private nativeTouchCount = 0;
+  private lastPointerType = 'none';
+  private lastTouchMonitorId: number | null = null;
   private textureOkByScheme = { file: 0, custom: 0, other: 0 };
   private textureFailByScheme = { file: 0, custom: 0, other: 0 };
   private sharedTextures = new Map<string, THREE.Texture>();
@@ -802,19 +806,25 @@ export class ExploreController {
     return (pts[0]!.lastY + pts[1]!.lastY) * 0.5;
   }
 
+  private effectiveFingerCount(): number {
+    return Math.max(this.pointers.size, this.nativeTouchCount);
+  }
+
   private beginTwoFingerSessionIfNeeded(): void {
-    if (this.pointers.size < 2) return;
+    if (this.effectiveFingerCount() < 2) return;
     if (this.gestureMode === 'multi-touch-blocked') return;
     if (
       this.gestureMode !== 'two-finger-pending' &&
       this.gestureMode !== 'two-finger-swipe-dolly' &&
       this.gestureMode !== 'two-finger-pinch-dolly'
     ) {
-      this.pinchDistance = this.pinchDistanceBetween();
-      this.pinchDelta = 0;
-      this.pinchCentroidY = this.pinchCentroidYBetween();
-      this.pinchOriginCentroidY = this.pinchCentroidY;
-      this.pinchOriginDistance = this.pinchDistance;
+      if (this.pointers.size >= 2) {
+        this.pinchDistance = this.pinchDistanceBetween();
+        this.pinchDelta = 0;
+        this.pinchCentroidY = this.pinchCentroidYBetween();
+        this.pinchOriginCentroidY = this.pinchCentroidY;
+        this.pinchOriginDistance = this.pinchDistance;
+      }
       this.gestureMode = 'two-finger-pending';
       this.twoFingerVerticalArmed = false;
       this.twoFingerDollyActive = false;
@@ -837,6 +847,18 @@ export class ExploreController {
     this.tapSuppressedByPinch = true;
     this.tapSuppressedByTwoFinger = true;
     this.tapSuppressedByMultiTouch = true;
+    this.hideBubbleForMultiTouch();
+  }
+
+  private hideBubbleForMultiTouch(): void {
+    this.bubbleVisible = false;
+    this.revealActive = false;
+    this.bubbleHasTarget = false;
+    this.bubbleContactActive = false;
+    if (this.hideBubbleTimer) {
+      clearTimeout(this.hideBubbleTimer);
+      this.hideBubbleTimer = null;
+    }
   }
 
   private resetPinchTracking(): void {
@@ -860,6 +882,8 @@ export class ExploreController {
   private sessionBlocksOneFinger(): boolean {
     return (
       this.pinchSession ||
+      this.nativeTouchCount >= 2 ||
+      this.effectiveFingerCount() >= 2 ||
       this.gestureMode === 'two-finger-pending' ||
       this.gestureMode === 'two-finger-swipe-dolly' ||
       this.gestureMode === 'two-finger-pinch-dolly' ||
@@ -947,6 +971,7 @@ export class ExploreController {
       revealCenterNdcX: this.revealCenterNdcX,
       revealCenterNdcY: this.revealCenterNdcY,
       revealActive: this.revealActive,
+      bubbleMonitorId: this.layout.monitorId,
     };
   }
 
@@ -956,6 +981,7 @@ export class ExploreController {
 
   private showBubbleAt(clientX: number, clientY: number, pointerType: string): void {
     if (!this.isBubbleAllowed()) return;
+    if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) return;
     if (this.hideBubbleTimer) {
       clearTimeout(this.hideBubbleTimer);
       this.hideBubbleTimer = null;
@@ -983,6 +1009,7 @@ export class ExploreController {
 
   private updateBubbleFromPointer(e: PointerEvent, opts: { show?: boolean; contact?: boolean } = {}): void {
     if (!this.isBubbleAllowed()) return;
+    if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) return;
     if (opts.show || this.bubbleVisible) {
       this.showBubbleAt(e.clientX, e.clientY, e.pointerType || 'mouse');
     }
@@ -1043,6 +1070,7 @@ export class ExploreController {
     this.unbindWheel();
     this.unbindShiftKeys();
     this.pointers.clear();
+    this.nativeTouchCount = 0;
     this.resetPinchTracking();
     this.renderer?.domElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.renderer?.domElement.removeEventListener('webglcontextrestored', this.onContextRestored);
@@ -1081,6 +1109,11 @@ export class ExploreController {
     el.addEventListener('pointercancel', this.onPointerCancel);
     el.addEventListener('lostpointercapture', this.onLostPointerCapture);
     el.addEventListener('pointerleave', this.onPointerLeave);
+    const touchOpts: AddEventListenerOptions = { passive: false, capture: true };
+    window.addEventListener('touchstart', this.onNativeTouchChange, touchOpts);
+    window.addEventListener('touchmove', this.onNativeTouchChange, touchOpts);
+    window.addEventListener('touchend', this.onNativeTouchChange, touchOpts);
+    window.addEventListener('touchcancel', this.onNativeTouchChange, touchOpts);
   }
 
   private unbindPointer(): void {
@@ -1092,6 +1125,10 @@ export class ExploreController {
     el.removeEventListener('pointercancel', this.onPointerCancel);
     el.removeEventListener('lostpointercapture', this.onLostPointerCapture);
     el.removeEventListener('pointerleave', this.onPointerLeave);
+    window.removeEventListener('touchstart', this.onNativeTouchChange, true);
+    window.removeEventListener('touchmove', this.onNativeTouchChange, true);
+    window.removeEventListener('touchend', this.onNativeTouchChange, true);
+    window.removeEventListener('touchcancel', this.onNativeTouchChange, true);
   }
 
   private bindWheel(): void {
@@ -1125,13 +1162,43 @@ export class ExploreController {
   private onWindowBlur = (): void => {
     this.shiftHeld = false;
     this.pointers.clear();
+    this.nativeTouchCount = 0;
     this.resetPinchTracking();
     this.bubbleContactActive = false;
   };
 
+  private onNativeTouchChange = (e: TouchEvent): void => {
+    const target = e.target;
+    if (target instanceof Element && target.closest('.debug-panel, .debug-toggle, .topbar')) {
+      return;
+    }
+    this.nativeTouchCount = e.touches.length;
+    this.lastPointerType = 'touch';
+    this.lastTouchMonitorId = this.layout.monitorId;
+    const fingers = this.effectiveFingerCount();
+    if (e.touches.length >= 3 || fingers >= 3 || this.gestureMode === 'multi-touch-blocked') {
+      e.preventDefault();
+      this.enterMultiTouchBlocked();
+      return;
+    }
+    if (e.type === 'touchmove' && e.touches.length >= 2) {
+      e.preventDefault();
+    }
+    if (fingers >= 2) {
+      this.beginTwoFingerSessionIfNeeded();
+    }
+    if (this.pointers.size === 0 && this.nativeTouchCount === 0) {
+      this.resetPinchTracking();
+    }
+  };
+
   private onPointerDown = (e: PointerEvent): void => {
-    this.updateBubbleFromPointer(e, { show: true, contact: true });
-    if (!this.interactionEnabled) return;
+    this.lastPointerType = e.pointerType || 'mouse';
+    if (e.pointerType === 'touch') this.lastTouchMonitorId = this.layout.monitorId;
+    if (!this.interactionEnabled) {
+      this.updateBubbleFromPointer(e, { show: true, contact: true });
+      return;
+    }
     e.preventDefault();
     this.callbacks.onValidActivity?.();
     try {
@@ -1148,14 +1215,16 @@ export class ExploreController {
       startTime: performance.now(),
       dragging: false,
     });
-    if (this.gestureMode === 'multi-touch-blocked' || this.pointers.size >= 3) {
+    if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) {
       this.enterMultiTouchBlocked();
       return;
     }
-    if (this.pointers.size >= 2) {
+    if (this.effectiveFingerCount() >= 2) {
       this.beginTwoFingerSessionIfNeeded();
+      this.updateBubbleFromPointer(e, { show: true, contact: true });
       return;
     }
+    this.updateBubbleFromPointer(e, { show: true, contact: true });
     if (this.gestureMode === 'idle') this.gestureMode = 'one-finger';
   };
 
@@ -1194,7 +1263,9 @@ export class ExploreController {
   }
 
   private onPointerMove = (e: PointerEvent): void => {
-    if (this.isBubbleAllowed()) {
+    this.lastPointerType = e.pointerType || this.lastPointerType;
+    if (e.pointerType === 'touch') this.lastTouchMonitorId = this.layout.monitorId;
+    if (this.gestureMode !== 'multi-touch-blocked' && this.effectiveFingerCount() < 3 && this.isBubbleAllowed()) {
       this.updateBubbleFromPointer(e, {
         show: this.bubbleContactActive || this.bubbleVisible || true,
       });
@@ -1213,7 +1284,7 @@ export class ExploreController {
     p.lastX = e.clientX;
     p.lastY = e.clientY;
 
-    if (this.gestureMode === 'multi-touch-blocked' || this.pointers.size >= 3) {
+    if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) {
       this.enterMultiTouchBlocked();
       return;
     }
@@ -1223,7 +1294,15 @@ export class ExploreController {
       return;
     }
 
-    if (p.dragging && this.pointers.size === 1 && this.gestureMode === 'one-finger') {
+    // 1本指のみ camera X/Y pan。2本指は PointerEvent が1本でも TouchEvent で止める。
+    if (
+      p.dragging &&
+      this.pointers.size === 1 &&
+      this.nativeTouchCount <= 1 &&
+      this.effectiveFingerCount() === 1 &&
+      this.gestureMode === 'one-finger' &&
+      !this.sessionBlocksOneFinger()
+    ) {
       const nextX = this.targetCameraX - dx * CAMERA_CONFIG.dragSensitivity;
       const nextY = this.targetCameraY + dy * CAMERA_CONFIG.dragSensitivity;
       if (this.world.mode === 'independent') {
@@ -1247,8 +1326,8 @@ export class ExploreController {
       this.tapSuppressedByTwoFinger ||
       this.tapSuppressedByMultiTouch;
     this.pointers.delete(e.pointerId);
-    this.bubbleContactActive = this.pointers.size > 0;
-    if (this.pointers.size === 0 && this.bubbleVisible) this.scheduleHideBubble();
+    this.bubbleContactActive = this.pointers.size > 0 || this.nativeTouchCount > 0;
+    if (this.pointers.size === 0 && this.nativeTouchCount === 0 && this.bubbleVisible) this.scheduleHideBubble();
     if (this.pointers.size < 2) {
       this.pinchActive = false;
       this.twoFingerDollyActive = false;
@@ -1257,7 +1336,7 @@ export class ExploreController {
     } else {
       this.pinchDistance = this.pinchDistanceBetween();
     }
-    if (this.pointers.size === 0) {
+    if (this.pointers.size === 0 && this.nativeTouchCount === 0) {
       this.resetPinchTracking();
     }
     if (!p) return;
@@ -1372,6 +1451,7 @@ export class ExploreController {
     this.interactionEnabled = enabled;
     if (!enabled) {
       this.pointers.clear();
+      this.nativeTouchCount = 0;
       this.cruiseVelocityZ = 0;
       this.lastDollyImpulse = 0;
       this.resetPinchTracking();
@@ -1442,6 +1522,10 @@ export class ExploreController {
       dragging: [...this.pointers.values()].some((p) => p.dragging),
       pinchActive: this.pinchActive,
       twoFingerDollyActive: this.twoFingerDollyActive,
+      twoFingerPanActive: false,
+      nativeTouchCount: this.nativeTouchCount,
+      lastPointerType: this.lastPointerType,
+      lastTouchMonitorId: this.lastTouchMonitorId,
       twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
       twoFingerDollyTotalY: this.twoFingerDollyTotalY,
       wheelMode: this.wheelMode,
@@ -1590,8 +1674,14 @@ export class ExploreController {
       twoFingerDollyScale: listConfig.twoFingerDollyScale,
       gestureMode: this.gestureMode,
       oneFingerPanActive:
-        this.gestureMode === 'one-finger' && [...this.pointers.values()].some((row) => row.dragging),
+        this.gestureMode === 'one-finger' &&
+        this.effectiveFingerCount() === 1 &&
+        [...this.pointers.values()].some((row) => row.dragging),
+      twoFingerPanActive: false,
       multiTouchBlocked: this.gestureMode === 'multi-touch-blocked',
+      nativeTouchCount: this.nativeTouchCount,
+      lastPointerType: this.lastPointerType,
+      lastTouchMonitorId: this.lastTouchMonitorId,
       tapSuppressed:
         this.tapSuppressedByPinch || this.tapSuppressedByTwoFinger || this.tapSuppressedByMultiTouch,
       tapSuppressedByTwoFinger: this.tapSuppressedByTwoFinger,
@@ -1621,6 +1711,9 @@ export class ExploreController {
       sceneSpreadZ: SCENE_LAYOUT.zRange[1] - SCENE_LAYOUT.zRange[0],
       bubbleEnabled: bubble.enabled,
       bubbleVisible: bubble.visible,
+      bubbleX: bubble.screenX,
+      bubbleY: bubble.screenY,
+      bubbleMonitorId: bubble.bubbleMonitorId,
       bubbleAllowed: bubble.allowed,
       bubbleSizePx: bubble.sizePx,
       revealRadiusPx: bubble.revealRadiusPx,

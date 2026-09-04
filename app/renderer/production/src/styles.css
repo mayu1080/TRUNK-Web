@@ -12,6 +12,7 @@ body,
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  touch-action: none;
   font-family: system-ui, sans-serif;
   background: #0b0b0c;
   color: #f4f1ea;

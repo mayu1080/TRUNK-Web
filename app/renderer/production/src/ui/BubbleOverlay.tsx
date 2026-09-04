@@ -4,9 +4,10 @@ import type { BubbleRuntimeState } from '../types';
 
 interface BubbleOverlayProps {
   getState: () => BubbleRuntimeState | null;
+  monitorId: number;
 }
 
-export function BubbleOverlay({ getState }: BubbleOverlayProps) {
+export function BubbleOverlay({ getState, monitorId }: BubbleOverlayProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,10 +20,12 @@ export function BubbleOverlay({ getState }: BubbleOverlayProps) {
 
       const show = state.visible && state.allowed;
       const half = state.sizePx * 0.5;
+      const parent = el.offsetParent as HTMLElement | null;
+      const origin = parent ? parent.getBoundingClientRect() : { left: 0, top: 0 };
       el.style.width = `${state.sizePx}px`;
       el.style.height = `${state.sizePx}px`;
-      el.style.left = `${state.screenX - half}px`;
-      el.style.top = `${state.screenY - half}px`;
+      el.style.left = `${state.screenX - origin.left - half}px`;
+      el.style.top = `${state.screenY - origin.top - half}px`;
       el.style.opacity = show ? '1' : '0';
       el.style.visibility = show ? 'visible' : 'hidden';
       const motion = runtimeConfig.bubbleMotionId;
@@ -35,7 +38,12 @@ export function BubbleOverlay({ getState }: BubbleOverlayProps) {
   }, [getState]);
 
   return (
-    <div ref={rootRef} className="bubble-overlay bubble-overlay--off" aria-hidden="true">
+    <div
+      ref={rootRef}
+      className="bubble-overlay bubble-overlay--off"
+      data-bubble-monitor-id={monitorId}
+      aria-hidden="true"
+    >
       <svg className="bubble-overlay__svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
         <defs>
           <radialGradient id="bubble-glint-grad-production" cx="42%" cy="40%" r="58%">

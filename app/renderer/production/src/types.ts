@@ -58,6 +58,7 @@ export interface BubbleRuntimeState {
   revealCenterNdcX: number;
   revealCenterNdcY: number;
   revealActive: boolean;
+  bubbleMonitorId: number;
 }
 
 export interface ListDebugStats {
@@ -150,7 +151,11 @@ export interface ListDebugStats {
   twoFingerDollyScale: number;
   gestureMode: ListGestureMode;
   oneFingerPanActive: boolean;
+  twoFingerPanActive: boolean;
   multiTouchBlocked: boolean;
+  nativeTouchCount: number;
+  lastPointerType: string;
+  lastTouchMonitorId: number | null;
   activePointerIds: number[];
   tapSuppressed: boolean;
   tapSuppressedByTwoFinger: boolean;
@@ -182,6 +187,9 @@ export interface ListDebugStats {
 
   bubbleEnabled: boolean;
   bubbleVisible: boolean;
+  bubbleX: number;
+  bubbleY: number;
+  bubbleMonitorId: number;
   bubbleAllowed: boolean;
   bubbleSizePx: number;
   revealRadiusPx: number;

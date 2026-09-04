@@ -102,6 +102,10 @@ export function App() {
     loop: false,
   });
   const [viewportDebug, setViewportDebug] = useState<ViewportDebugDump | null>(null);
+  const [bubbleAggregate, setBubbleAggregate] = useState<{
+    activeBubbleCount: number;
+    byMonitor: Array<{ monitorId: number; bubbleVisible: boolean }>;
+  }>({ activeBubbleCount: 0, byMonitor: [] });
   const debugInitRef = useRef(false);
   const snapshotRef = useRef<ProductionSnapshot | null>(null);
   snapshotRef.current = snapshot;
@@ -172,7 +176,13 @@ export function App() {
       snapshotRef.current = next;
       setSnapshot(next);
     });
-    return () => unsub?.();
+    const unsubBubble = window.trunkApi.onBubbleAggregate?.((payload) => {
+      setBubbleAggregate(payload);
+    });
+    return () => {
+      unsub?.();
+      unsubBubble?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -224,9 +234,23 @@ export function App() {
     };
     window.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('pointermove', onPointerMove, { capture: true });
+    const onTouchGuard = (event: TouchEvent) => {
+      if (isDebugPanelEvent(event)) return;
+      if (event.touches.length >= 3) {
+        event.preventDefault();
+        return;
+      }
+      if (event.type === 'touchmove' && event.touches.length >= 2) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('touchstart', onTouchGuard, { capture: true, passive: false });
+    window.addEventListener('touchmove', onTouchGuard, { capture: true, passive: false });
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('touchstart', onTouchGuard, true);
+      window.removeEventListener('touchmove', onTouchGuard, true);
     };
   }, [dispatch, reportActivity]);
 
@@ -500,6 +524,16 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [snapshot?.monitorId, snapshot?.own.localOverlay, listStats?.canvasCssWidth, listStats?.cameraAspect]);
 
+  useEffect(() => {
+    window.trunkApi.reportBubbleState?.({ bubbleVisible: Boolean(listStats?.bubbleVisible) });
+  }, [listStats?.bubbleVisible]);
+
+  useEffect(() => {
+    return () => {
+      window.trunkApi.reportBubbleState?.({ bubbleVisible: false });
+    };
+  }, []);
+
   const exploreLayout: ExploreViewLayout | null = useMemo(() => {
     if (!snapshot) return null;
     return {
@@ -749,6 +783,7 @@ export function App() {
             `viewportOffset: ${layout.viewportOffsetX}, ${layout.viewportOffsetY}  layout.scale=${layout.scale}`,
             `orientation: ${layout.orientation}  config ${layout.width}x${layout.height}`,
             `windowBounds: ${layout.windowBounds.width}x${layout.windowBounds.height}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: monitor-${monitorId}`,
+            `activeBubbleCount: ${bubbleAggregate.activeBubbleCount}  lastPointerType: ${listStats?.lastPointerType ?? 'none'}  lastTouchMonitorId: ${listStats?.lastTouchMonitorId ?? '—'}`,
             viewportDebug
               ? [
                   `viewport inner: ${viewportDebug.innerWidth}x${viewportDebug.innerHeight}  outer: ${viewportDebug.outerWidth}x${viewportDebug.outerHeight}  screen: ${viewportDebug.screenX},${viewportDebug.screenY}`,
@@ -779,10 +814,12 @@ export function App() {
                   `camera: ${listStats.cameraX.toFixed(0)}, ${listStats.cameraY.toFixed(0)}, ${listStats.cameraZ.toFixed(0)}`,
                   `dollyVelocity: ${listStats.dollyVelocity.toFixed(1)}  lastInput: ${listStats.lastDollyInput}  wrap: ${listStats.wrapCount}`,
                   `cameraZ: ${listStats.cameraZ.toFixed(0)}  targetCameraZ: ${listStats.targetCameraZ.toFixed(0)}`,
-                  `bubble visible=${listStats.bubbleVisible} allowed=${listStats.bubbleAllowed} reveal=${listStats.revealActive}`,
-                  `bubbleScreen: ${listStats.bubbleScreenX.toFixed(0)}, ${listStats.bubbleScreenY.toFixed(0)}  r=${listStats.revealRadiusPx} size=${listStats.bubbleSizePx}`,
-                  `activePointerCount: ${listStats.activePointerCount}  ids: [${listStats.activePointerIds.join(',')}]  gestureMode: ${listStats.gestureMode}`,
-                  `oneFingerPanActive: ${listStats.oneFingerPanActive}  multiTouchBlocked: ${listStats.multiTouchBlocked}`,
+                  `bubble visible=${listStats.bubbleVisible} allowed=${listStats.bubbleAllowed} reveal=${listStats.revealActive} monitor=${listStats.bubbleMonitorId}`,
+                  `bubbleX/Y: ${listStats.bubbleX.toFixed(0)}, ${listStats.bubbleY.toFixed(0)}  screen: ${listStats.bubbleScreenX.toFixed(0)}, ${listStats.bubbleScreenY.toFixed(0)}  r=${listStats.revealRadiusPx} size=${listStats.bubbleSizePx}`,
+                  `activeBubbleCount: ${bubbleAggregate.activeBubbleCount}  byMonitor: [${bubbleAggregate.byMonitor.map((row) => `M${row.monitorId}:${row.bubbleVisible ? '1' : '0'}`).join(' ')}]`,
+                  `activePointerCount: ${listStats.activePointerCount}  nativeTouchCount: ${listStats.nativeTouchCount}  ids: [${listStats.activePointerIds.join(',')}]  gestureMode: ${listStats.gestureMode}`,
+                  `oneFingerPanActive: ${listStats.oneFingerPanActive}  twoFingerPanActive: ${listStats.twoFingerPanActive}  multiTouchBlocked: ${listStats.multiTouchBlocked}`,
+                  `lastPointerType: ${listStats.lastPointerType}  lastTouchMonitorId: ${listStats.lastTouchMonitorId ?? '—'}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: monitor-${monitorId}`,
                   `tapSuppressed: ${listStats.tapSuppressed}  byTwoFinger: ${listStats.tapSuppressedByTwoFinger}  byMultiTouch: ${listStats.tapSuppressedByMultiTouch}  byPinch: ${listStats.tapSuppressedByPinch}`,
                   `twoFingerDollyActive: ${listStats.twoFingerDollyActive}  twoFingerDollyDeltaY: ${listStats.twoFingerDollyDeltaY.toFixed(1)}  twoFingerDollyTotalY: ${listStats.twoFingerDollyTotalY.toFixed(1)}`,
                   `twoFingerDollyDeadZonePx: ${listStats.twoFingerDollyDeadZonePx}  twoFingerDollyMaxDeltaPx: ${listStats.twoFingerDollyMaxDeltaPx}  twoFingerDollyScale: ${listStats.twoFingerDollyScale}`,
@@ -847,7 +884,7 @@ export function App() {
           </button>
         </div>
         <p className="hint">
-          AD_IDLE: tap stage → ANIMATION. ANIMATION: stage tap ignored. PRODUCT_LIST: this window only 1-finger pan / 2-finger dolly / Bubble.
+          AD_IDLE: tap stage → ANIMATION. ANIMATION: stage tap ignored. PRODUCT_LIST: this window only 1-finger pan / 2-finger dolly (no XY pan) / Bubble.
           Overlay is this monitor only. Hamburger opens Drawer; tap scrim to close (no ×). Keys 1/2/3 Z/H/C X. D/G toggles debug/review. P toggles debug panel. R forces review.
         </p>
         <pre className="debug-pre debug-pre--dump">
@@ -940,7 +977,11 @@ export function App() {
                     activePointerIds: listStats.activePointerIds,
                     gestureMode: listStats.gestureMode,
                     oneFingerPanActive: listStats.oneFingerPanActive,
+                    twoFingerPanActive: listStats.twoFingerPanActive,
                     multiTouchBlocked: listStats.multiTouchBlocked,
+                    nativeTouchCount: listStats.nativeTouchCount,
+                    lastPointerType: listStats.lastPointerType,
+                    lastTouchMonitorId: listStats.lastTouchMonitorId,
                     twoFingerDollyActive: listStats.twoFingerDollyActive,
                     twoFingerDollyDeltaY: Number(listStats.twoFingerDollyDeltaY.toFixed(1)),
                     twoFingerDollyTotalY: Number(listStats.twoFingerDollyTotalY.toFixed(1)),
@@ -956,6 +997,10 @@ export function App() {
                     tapSuppressedByMultiTouch: listStats.tapSuppressedByMultiTouch,
                     tapSuppressed: listStats.tapSuppressed,
                     bubbleVisible: listStats.bubbleVisible,
+                    bubbleX: Number(listStats.bubbleX.toFixed(1)),
+                    bubbleY: Number(listStats.bubbleY.toFixed(1)),
+                    bubbleMonitorId: listStats.bubbleMonitorId,
+                    activeBubbleCount: bubbleAggregate.activeBubbleCount,
                     contextLost: listStats.contextLost,
                   }
                 : null,
