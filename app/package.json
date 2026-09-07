@@ -1,6 +1,6 @@
 {
   "name": "trunk-kiosk",
-  "version": "0.1.0",
+  "version": "1.5.0",
   "private": true,
   "description": "TRUNK 4-monitor exploration kiosk (Electron + Web)",
   "engines": {
@@ -43,7 +43,8 @@
     "check:production-phase74": "node scripts/check-production-phase74.js",
     "check:production-phase75": "node scripts/check-production-phase75.js",
     "check:production-phase76": "node scripts/check-production-phase76.js",
-    "check:production-brand-fonts": "node scripts/check-production-brand-fonts.js"
+    "check:production-brand-fonts": "node scripts/check-production-brand-fonts.js",
+    "summarize:observation": "node scripts/summarize-observation-log.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

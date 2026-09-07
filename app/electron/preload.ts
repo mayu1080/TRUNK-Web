@@ -35,6 +35,10 @@ const trunkApi: TrunkApi = {
   getNoiseAsset: () => ipcRenderer.invoke('trunk:getNoiseAsset'),
   getBrandFonts: () => ipcRenderer.invoke('trunk:getBrandFonts'),
   logEvent: (event: LogEvent) => ipcRenderer.invoke('trunk:logEvent', event),
+  appendObservation: (record: Record<string, unknown>) => {
+    ipcRenderer.send('trunk:observation', record);
+  },
+  getObservationLogPath: () => ipcRenderer.invoke('trunk:getObservationLogPath') as Promise<string | null>,
   getState: () => ipcRenderer.invoke('trunk:getState'),
   dispatch: (action: StateAction) => ipcRenderer.invoke('trunk:dispatch', action),
   onStateChanged: (callback: (state: MonitorState) => void) => {

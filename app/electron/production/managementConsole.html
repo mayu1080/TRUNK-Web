@@ -40,6 +40,7 @@
   <p class="sub">認識しているディスプレイです。本番 content window は 4 枚だけ。この窓は 5 枚目の本番画面ではありません。タッチはこの窓で消費し、背面へ通しません。マウス／キーボードは使えます。</p>
   <p class="sub" id="touch-debug">adminTouchBlocked: 0　lastPointerType: —</p>
   <p class="sub" id="touch-routing">lastTouchWindowId: —　lastTouchMonitorId: —　lastTouchDisplayId: —　sharedDisplayId: —　identicalBounds: —</p>
+  <p class="sub" id="observation-log" style="user-select:text;white-space:pre-wrap">INPUT TRACE LOG: (not started)</p>
   <div class="row" id="summary"></div>
   <h2 style="font-size:15px;margin:0 0 6px">OS ディスプレイ</h2>
   <table>
@@ -87,6 +88,7 @@
       if (status.mappingFlags && status.mappingFlags.identicalBounds) flags.push('<span class="badge warn">IDENTICAL bounds</span>');
       document.getElementById('summary').innerHTML = flags.join('');
       paintTouchRouting(status.lastTouch, status.mappingFlags);
+      paintObservationLog(status.observationLogPath);
 
       document.getElementById('displays').innerHTML = status.displays.map(function (d) {
         return '<tr>' +
@@ -157,6 +159,11 @@
         '　event: ' + ((lastTouch && lastTouch.eventType) ? lastTouch.eventType : '—') +
         '　sharedDisplayId: ' + (flags.sharedDisplayId === true ? 'YES' : flags.sharedDisplayId === false ? 'no' : '—') +
         '　identicalBounds: ' + (flags.identicalBounds === true ? 'YES' : flags.identicalBounds === false ? 'no' : '—');
+    }
+    function paintObservationLog(logPath) {
+      var el = document.getElementById('observation-log');
+      if (!el) return;
+      el.textContent = logPath ? ('INPUT TRACE LOG:\n' + logPath) : 'INPUT TRACE LOG: (not started)';
     }
     function paintTouchDebug() {
       if (!touchDebugEl) return;

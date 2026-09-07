@@ -33,6 +33,7 @@ import {
   parseSiteAutoBounds,
 } from './production/displayDump';
 import { applyFixedMonitorWindowStack } from './production/windowStack';
+import { appendObservation, getObservationLogPath, startObservationLog } from './production/observationLog';
 import { resolveNoiseAsset } from './production/noiseAsset';
 import { ProductionStateCoordinator } from './production/productionStateCoordinator';
 import { loadVideoPlaylist, videoPlaylistMode } from './production/videoPlaylist';
@@ -255,6 +256,11 @@ function registerSharedIpc(): void {
     logEvent(event);
     return true;
   });
+  ipcMain.on('trunk:observation', (_event, payload: Record<string, unknown> | undefined) => {
+    if (!payload || typeof payload !== 'object') return;
+    appendObservation({ source: 'renderer', ...payload });
+  });
+  ipcMain.handle('trunk:getObservationLogPath', () => getObservationLogPath());
 }
 
 function registerLegacyStateIpc(): void {
@@ -497,6 +503,36 @@ function applyProductionWindowStackNow(reason: string, monitorId?: number, force
       monitorId,
       verbose: forceLog || productionStackVerbose(),
     });
+    for (const [id, win] of monitorWindows) {
+      if (win.isDestroyed()) continue;
+      const b = win.getBounds();
+      logEvent({
+        level: 'info',
+        message: 'INPUT_TRACE',
+        context: {
+          eventType: 'moveTop',
+          decision: 'INFO',
+          reason,
+          monitorId: id,
+          windowId: win.id,
+          focused: win.isFocused(),
+          bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+          triggerMonitorId: monitorId ?? null,
+        },
+      });
+      appendObservation({
+        source: 'main',
+        event: 'moveTop',
+        decision: 'INFO',
+        reason,
+        monitorId: id,
+        windowId: win.id,
+        focused: win.isFocused(),
+        bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+        triggerMonitorId: monitorId ?? null,
+        displayId: screen.getDisplayMatching(b)?.id ?? null,
+      });
+    }
   } finally {
     productionStackApplying = false;
   }
@@ -512,7 +548,51 @@ function scheduleProductionWindowStack(reason: string, monitorId?: number, force
 
 function bindProductionWindowStack(win: BrowserWindow, monitorId: number): void {
   win.on('focus', () => {
+    const b = win.getBounds();
+    logEvent({
+      level: 'info',
+      message: 'INPUT_TRACE',
+      context: {
+        eventType: 'focus',
+        decision: 'INFO',
+        monitorId,
+        windowId: win.id,
+        bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+      },
+    });
+    appendObservation({
+      source: 'main',
+      event: 'focus',
+      decision: 'INFO',
+      monitorId,
+      windowId: win.id,
+      bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+      displayId: screen.getDisplayMatching(b)?.id ?? null,
+    });
     scheduleProductionWindowStack('focus', monitorId);
+  });
+  win.on('blur', () => {
+    const b = win.getBounds();
+    logEvent({
+      level: 'info',
+      message: 'INPUT_TRACE',
+      context: {
+        eventType: 'blur',
+        decision: 'INFO',
+        monitorId,
+        windowId: win.id,
+        bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+      },
+    });
+    appendObservation({
+      source: 'main',
+      event: 'blur',
+      decision: 'INFO',
+      monitorId,
+      windowId: win.id,
+      bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+      displayId: screen.getDisplayMatching(b)?.id ?? null,
+    });
   });
 }
 
@@ -631,6 +711,7 @@ function currentManagementStatus(): ManagementStatus | null {
           eventType: lastTouchHit.eventType,
         }
       : null,
+    observationLogPath: getObservationLogPath(),
   });
 }
 
@@ -728,10 +809,34 @@ function showContentError(error: unknown): void {
 
 function startProductionShell(): void {
   const service = getContentService();
+  const observationPath = startObservationLog();
+  appendObservation({
+    source: 'main',
+    event: 'DISPLAYS_DUMP',
+    decision: 'INFO',
+    displays: screen.getAllDisplays().map((display) => ({
+      id: display.id,
+      bounds: { x: display.bounds.x, y: display.bounds.y, width: display.bounds.width, height: display.bounds.height },
+      workArea: {
+        x: display.workArea.x,
+        y: display.workArea.y,
+        width: display.workArea.width,
+        height: display.workArea.height,
+      },
+      scaleFactor: display.scaleFactor,
+      internal: Boolean(display.internal),
+    })),
+  });
   logEvent({
     level: 'info',
     message: 'app start',
-    context: { shell: 'production', contentRoot: service.contentRoot, isPackaged: app.isPackaged },
+    context: {
+      shell: 'production',
+      contentRoot: service.contentRoot,
+      isPackaged: app.isPackaged,
+      observationLog: observationPath,
+      appVersion: app.getVersion(),
+    },
   });
 
   const { layout, layoutPath } = loadMonitorLayout(service.contentRoot);
@@ -974,6 +1079,12 @@ function startProductionShell(): void {
     level: 'info',
     message: 'window mapping dump',
     context: currentWindowMapping() as unknown as Record<string, unknown>,
+  });
+  appendObservation({
+    source: 'main',
+    event: 'WINDOW_MAPPING',
+    decision: 'INFO',
+    mapping: currentWindowMapping(),
   });
 
   scheduleProductionWindowStack('startup', undefined, true);

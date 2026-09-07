@@ -1,4 +1,5 @@
 import type { GlobalScene, VideoSessionInfo, VideoTrackInfo } from '../../shared/productionState';
+import { appendObservation } from './observationLog';
 import type { VideoPlaylist } from './videoPlaylist';
 
 export class VideoSyncController {
@@ -74,6 +75,35 @@ export class VideoSyncController {
       loop: playlist.loop,
       tracksFound: playlist.tracks.filter((t) => t.found).length,
     });
+    if (scene === 'AD_IDLE') {
+      appendObservation({
+        source: 'main',
+        event: 'AD_START_COMMAND',
+        decision: 'INFO',
+        scene,
+        sessionId: this.sessionId,
+        contentId: playlist.contentId,
+        startedAtMs: this.startedAtMs,
+        durationMs: playlist.durationMs,
+        loop: playlist.loop,
+        tracksFound: playlist.tracks.filter((t) => t.found).length,
+      });
+      for (const track of playlist.tracks) {
+        appendObservation({
+          source: 'main',
+          event: 'AD_START_COMMAND',
+          decision: 'INFO',
+          reason: 'per-monitor',
+          scene,
+          monitorId: track.monitorId,
+          contentId: playlist.contentId,
+          sessionId: this.sessionId,
+          currentTime: 0,
+          relativePath: track.relativePath,
+          found: track.found,
+        });
+      }
+    }
     if (scene !== 'ANIMATION') return;
     const waitForMediaEnded =
       playlist.endPolicy === 'media-ended' && playlist.tracks.some((track) => track.found);

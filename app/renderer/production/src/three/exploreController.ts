@@ -49,6 +49,7 @@ import {
   type CameraPanDebugSample,
   type CameraUpdateReason,
 } from '@trunk-shared/localGestureSession';
+import { describeEventTarget, getInputTraceRows, observeAllMoves, pushInputTrace, rowFromPointer } from '../inputTrace';
 
 const CARD_LONG_SIDE = 280;
 const TEXTURE_LOAD_CONCURRENCY = 4;
@@ -838,6 +839,14 @@ export class ExploreController {
     return Math.max(this.pointers.size, this.nativeTouchCount);
   }
 
+  private touchPointerCount(): number {
+    let count = 0;
+    for (const pointer of this.pointers.values()) {
+      if (pointer.pointerType === 'touch') count += 1;
+    }
+    return count;
+  }
+
   private isCameraPanDebugEnabled(): boolean {
     return typeof document !== 'undefined' && Boolean(document.querySelector('.app.debug-mode'));
   }
@@ -1234,6 +1243,7 @@ export class ExploreController {
     el.addEventListener('pointerup', this.onPointerUp);
     el.addEventListener('pointercancel', this.onPointerCancel);
     el.addEventListener('lostpointercapture', this.onLostPointerCapture);
+    el.addEventListener('gotpointercapture', this.onGotPointerCapture);
     el.addEventListener('pointerleave', this.onPointerLeave);
     const touchOpts: AddEventListenerOptions = { passive: false, capture: true };
     window.addEventListener('touchstart', this.onNativeTouchChange, touchOpts);
@@ -1250,6 +1260,7 @@ export class ExploreController {
     el.removeEventListener('pointerup', this.onPointerUp);
     el.removeEventListener('pointercancel', this.onPointerCancel);
     el.removeEventListener('lostpointercapture', this.onLostPointerCapture);
+    el.removeEventListener('gotpointercapture', this.onGotPointerCapture);
     el.removeEventListener('pointerleave', this.onPointerLeave);
     window.removeEventListener('touchstart', this.onNativeTouchChange, true);
     window.removeEventListener('touchmove', this.onNativeTouchChange, true);
@@ -1287,6 +1298,32 @@ export class ExploreController {
 
   private onWindowBlur = (): void => {
     this.shiftHeld = false;
+    pushInputTrace({
+      monitorId: this.layout.monitorId,
+      windowId: this.ownerWindowId,
+      eventType: 'blur',
+      decision: 'INFO',
+      pointerId: null,
+      pointerType: 'none',
+      isPrimary: null,
+      clientX: null,
+      clientY: null,
+      screenX: null,
+      screenY: null,
+      buttons: null,
+      target: 'window',
+      cancelable: null,
+      defaultPrevented: null,
+      capture: null,
+      nativeTouchCount: this.nativeTouchCount,
+      pointerCount: this.pointers.size,
+      activePointerCount: this.pointers.size,
+      activeTouchPointerCount: this.touchPointerCount(),
+      gestureMode: this.gestureMode,
+      interactionSessionId: this.interactionSessionId,
+      interactionLocked: !this.interactionEnabled,
+      extra: 'keepTouchPointers',
+    });
     // Keep local touch sessions. Focus moving to another monitor must not
     // clear lastX/startX — a leftover pointermove at the original down point
     // would snap camera XY back toward the first contact.
@@ -1307,6 +1344,38 @@ export class ExploreController {
     this.nativeTouchCount = e.touches.length;
     this.lastPointerType = 'touch';
     this.lastTouchMonitorId = this.layout.monitorId;
+    const touch = e.changedTouches[0];
+    if (e.type !== 'touchmove') {
+      pushInputTrace({
+        monitorId: this.layout.monitorId,
+        windowId: this.ownerWindowId,
+        eventType: e.type,
+        decision: e.touches.length >= 3 ? 'DROP_MULTI_TOUCH_BLOCKED' : 'INFO',
+        pointerId: touch?.identifier ?? null,
+        pointerType: 'touch',
+        isPrimary: null,
+        clientX: touch?.clientX ?? null,
+        clientY: touch?.clientY ?? null,
+        screenX: touch?.screenX ?? null,
+        screenY: touch?.screenY ?? null,
+        buttons: null,
+        target: describeEventTarget(e.target),
+        cancelable: e.cancelable,
+        defaultPrevented: e.defaultPrevented,
+        capture: true,
+        nativeTouchCount: e.touches.length,
+        pointerCount: this.pointers.size,
+        touchIdentifier: touch?.identifier ?? null,
+        touchesLength: e.touches.length,
+        changedTouchesLength: e.changedTouches.length,
+        activePointerCount: this.pointers.size,
+        activeTouchPointerCount: this.touchPointerCount(),
+        gestureMode: this.gestureMode,
+        interactionSessionId: this.interactionSessionId,
+        interactionLocked: !this.interactionEnabled,
+        extra: `changed=${e.changedTouches.length} prevent=${e.type === 'touchmove' && e.touches.length >= 2}`,
+      });
+    }
     const fingers = this.effectiveFingerCount();
     if (e.touches.length >= 3 || fingers >= 3 || this.gestureMode === 'multi-touch-blocked') {
       e.preventDefault();
@@ -1324,11 +1393,47 @@ export class ExploreController {
     }
   };
 
+  private lastMoveDropTraceMs = 0;
+
+  private tracePointer(
+    e: PointerEvent,
+    decision: Parameters<typeof rowFromPointer>[1]['decision'],
+    extra?: string,
+    capture?: boolean,
+  ): void {
+    if (e.type === 'pointermove' && decision.startsWith('DROP_')) {
+      const now = Date.now();
+      if (now - this.lastMoveDropTraceMs < 250) return;
+      this.lastMoveDropTraceMs = now;
+    }
+    if (e.type === 'pointermove' && decision === 'ACCEPT' && !observeAllMoves()) return;
+    pushInputTrace(
+      rowFromPointer(e, {
+        monitorId: this.layout.monitorId,
+        windowId: this.ownerWindowId,
+        decision,
+        nativeTouchCount: this.nativeTouchCount,
+        pointerCount: this.pointers.size,
+        extra,
+        capture,
+        activeTouchPointerCount: this.touchPointerCount(),
+        gestureMode: this.gestureMode,
+        interactionSessionId: this.interactionSessionId,
+        pointerSessionId: this.pointers.get(e.pointerId)?.sessionId ?? this.interactionSessionId,
+        interactionLocked: !this.interactionEnabled,
+      }),
+    );
+  }
+
   private onPointerDown = (e: PointerEvent): void => {
     this.lastPointerType = e.pointerType || 'mouse';
     if (e.pointerType === 'touch') this.lastTouchMonitorId = this.layout.monitorId;
-    if (!this.pointerEventBelongsHere(e)) return;
+    if (!this.pointerEventBelongsHere(e)) {
+      this.tracePointer(e, 'DROP_NOT_BELONG_TO_WINDOW');
+      return;
+    }
     if (!this.interactionEnabled) {
+      this.tracePointer(e, 'DROP_INTERACTION_LOCK', `overlayLock cameraPan=false bubbleMayFollow=true`);
       this.updateBubbleFromPointer(e, { show: true, contact: true });
       return;
     }
@@ -1336,6 +1441,7 @@ export class ExploreController {
     this.callbacks.onValidActivity?.();
     const existing = this.pointers.get(e.pointerId);
     if (isDuplicateLocalPointerDown(existing ? this.toPointerRecord(existing) : undefined, this.interactionSessionId)) {
+      this.tracePointer(e, 'DROP_DUPLICATE_POINTERDOWN', `session=${this.interactionSessionId}`);
       try {
         this.renderer.domElement.setPointerCapture?.(e.pointerId);
       } catch {
@@ -1379,14 +1485,21 @@ export class ExploreController {
       pointerType: e.pointerType || 'mouse',
     });
     if (this.gestureMode === 'multi-touch-blocked' || this.effectiveFingerCount() >= 3) {
+      this.tracePointer(e, 'DROP_MULTI_TOUCH_BLOCKED', `fingers=${this.effectiveFingerCount()}`);
       this.enterMultiTouchBlocked();
       return;
     }
     if (this.effectiveFingerCount() >= 2) {
+      this.tracePointer(
+        e,
+        'ACCEPT',
+        `twoFingerSession nTouch=${this.nativeTouchCount} nPtr=${this.pointers.size} panXy=false`,
+      );
       this.beginTwoFingerSessionIfNeeded();
       this.updateBubbleFromPointer(e, { show: true, contact: true });
       return;
     }
+    this.tracePointer(e, 'ACCEPT', `oneFinger session=${this.interactionSessionId}`);
     this.updateBubbleFromPointer(e, { show: true, contact: true });
     if (this.gestureMode === 'idle') this.gestureMode = 'one-finger';
   };
@@ -1428,7 +1541,10 @@ export class ExploreController {
   private onPointerMove = (e: PointerEvent): void => {
     this.lastPointerType = e.pointerType || this.lastPointerType;
     if (e.pointerType === 'touch') this.lastTouchMonitorId = this.layout.monitorId;
-    if (!this.pointerEventBelongsHere(e)) return;
+    if (!this.pointerEventBelongsHere(e)) {
+      this.tracePointer(e, 'DROP_NOT_BELONG_TO_WINDOW');
+      return;
+    }
     if (this.gestureMode !== 'multi-touch-blocked' && this.effectiveFingerCount() < 3 && this.isBubbleAllowed()) {
       this.updateBubbleFromPointer(e, {
         show: this.bubbleContactActive || this.bubbleVisible,
@@ -1437,7 +1553,10 @@ export class ExploreController {
     if (!this.interactionEnabled) return;
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
-    if (p.sessionId !== this.interactionSessionId) return;
+    if (p.sessionId !== this.interactionSessionId) {
+      this.tracePointer(e, 'DROP_SESSION_MISMATCH', `ptrSession=${p.sessionId} live=${this.interactionSessionId}`);
+      return;
+    }
     e.preventDefault();
     const totalMove = Math.hypot(e.clientX - p.startX, e.clientY - p.startY);
     if (!p.dragging && totalMove >= listConfig.tapMaxMovePx) {
@@ -1453,6 +1572,13 @@ export class ExploreController {
     }
 
     if (this.sessionBlocksOneFinger()) {
+      if (this.nativeTouchCount >= 2 && this.pointers.size <= 1) {
+        this.tracePointer(
+          e,
+          'DROP_NATIVE_TOUCH_COUNT',
+          `panBlocked nTouch=${this.nativeTouchCount} nPtr=${this.pointers.size}`,
+        );
+      }
       p.lastX = e.clientX;
       p.lastY = e.clientY;
       if (this.pointers.size >= 2) this.applyTwoFingerDollyFromMove();
@@ -1491,6 +1617,13 @@ export class ExploreController {
           this.targetCameraX = clamp(nextX, this.panMinX, this.panMaxX);
           this.targetCameraY = clamp(nextY, this.panMinY, this.panMaxY);
         }
+      }
+      if (decision.reason === 'stale-start-replay-ignored') {
+        this.tracePointer(e, 'DROP_STALE_START', `session=${this.interactionSessionId}`);
+      } else if (decision.reason === 'session-mismatch-ignored') {
+        this.tracePointer(e, 'DROP_SESSION_MISMATCH');
+      } else if (decision.reason === 'foreign-window-ignored') {
+        this.tracePointer(e, 'DROP_NOT_BELONG_TO_WINDOW', 'foreign-window-ignored');
       }
       this.recordCameraPanDebug(
         e,
@@ -1551,14 +1684,21 @@ export class ExploreController {
   }
 
   private onPointerUp = (e: PointerEvent): void => {
+    this.tracePointer(e, 'ACCEPT', `up pointersLeft=${Math.max(0, this.pointers.size - (this.pointers.has(e.pointerId) ? 1 : 0))}`);
     this.finishPointer(e, true);
   };
 
   private onPointerCancel = (e: PointerEvent): void => {
+    this.tracePointer(e, 'INFO', 'pointercancel');
     this.finishPointer(e, false);
   };
 
+  private onGotPointerCapture = (e: PointerEvent): void => {
+    this.tracePointer(e, 'INFO', 'gotpointercapture', true);
+  };
+
   private onLostPointerCapture = (e: PointerEvent): void => {
+    this.tracePointer(e, 'INFO', 'lostpointercapture', true);
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
     if (p.pointerType === 'touch' && p.sessionId === this.interactionSessionId) {
@@ -1741,6 +1881,7 @@ export class ExploreController {
       lastCameraUpdateReason: this.lastCameraUpdateReason,
       cameraPanDebug: this.cameraPanDebug.map(formatCameraPanDebugSample),
       bubbleActionDebug: this.bubbleActionDebug.map(formatBubbleActionDebugSample),
+      inputTraceDebug: getInputTraceRows(),
       twoFingerDollyDeltaY: this.twoFingerDollyDeltaY,
       twoFingerDollyTotalY: this.twoFingerDollyTotalY,
       wheelMode: this.wheelMode,
@@ -1903,6 +2044,7 @@ export class ExploreController {
       lastCameraUpdateReason: this.lastCameraUpdateReason,
       cameraPanDebug: this.cameraPanDebug.map(formatCameraPanDebugSample),
       bubbleActionDebug: this.bubbleActionDebug.map(formatBubbleActionDebugSample),
+      inputTraceDebug: getInputTraceRows(),
       tapSuppressed:
         this.tapSuppressedByPinch || this.tapSuppressedByTwoFinger || this.tapSuppressedByMultiTouch,
       tapSuppressedByTwoFinger: this.tapSuppressedByTwoFinger,

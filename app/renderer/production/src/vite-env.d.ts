@@ -55,6 +55,8 @@ declare global {
         message: string;
         context?: Record<string, unknown>;
       }): Promise<boolean>;
+      appendObservation(record: Record<string, unknown>): void;
+      getObservationLogPath(): Promise<string | null>;
       getAssetIndex(): Promise<AssetIndex>;
       getExploreImages(): Promise<{
         source: 'listImages' | 'recursive-images';

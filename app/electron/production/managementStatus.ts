@@ -56,6 +56,7 @@ export interface ManagementStatus {
     displayId: number | null;
     eventType: string | null;
   } | null;
+  observationLogPath: string | null;
   managementDisplayIds: number[];
   ads: { contentId: string; foundCount: number; tracks: ManagementTrackRow[] };
   animation: { contentId: string; foundCount: number; tracks: ManagementTrackRow[] };
@@ -87,6 +88,7 @@ export function buildManagementStatus(input: {
     displayId: number | null;
     eventType: string | null;
   } | null;
+  observationLogPath?: string | null;
 }): ManagementStatus {
   const productionByDisplay = new Map<number, number[]>();
   for (const row of input.placement.windows) {
@@ -152,6 +154,7 @@ export function buildManagementStatus(input: {
       identicalBounds: boundKeys.length > 1 && new Set(boundKeys).size < boundKeys.length,
     },
     lastTouch: input.lastTouch ?? null,
+    observationLogPath: input.observationLogPath ?? null,
     managementDisplayIds: [...input.placement.managementDisplayIds],
     ads: {
       contentId: input.adsContentId,

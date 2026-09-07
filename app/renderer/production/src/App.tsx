@@ -27,6 +27,8 @@ import { loadMaisonNeue, type BrandFontStatus } from './loadBrandFonts';
 import { isDebugMode, type UiDisplayMode } from './uiMode';
 import { collectViewportDebug, type ViewportDebugDump } from './viewportDebug';
 import { TouchMarker } from './ui/TouchMarker';
+import { describeEventTarget, pushInputTrace } from './inputTrace';
+import { armVideoFirstFrame, observeAdEvent, observedPlay } from './adObservation';
 import {
   TOUCH_MOVE_THROTTLE_MS,
   formatTouchHit,
@@ -141,6 +143,7 @@ export function App() {
   const [touchHits, setTouchHits] = useState<LocalTouchHit[]>([]);
   const [touchMarker, setTouchMarker] = useState<{ clientX: number; clientY: number; monitorId: number } | null>(null);
   const [thisWindowId, setThisWindowId] = useState<number | null>(null);
+  const [observationLogPath, setObservationLogPath] = useState<string | null>(null);
   const debugInitRef = useRef(false);
   const debugModeRef = useRef(false);
   const hitRingRef = useRef<LocalTouchHit[]>([]);
@@ -253,6 +256,12 @@ export function App() {
         if (config.windowId != null) setThisWindowId(config.windowId);
       });
     }
+    if (window.trunkApi.getObservationLogPath) {
+      void window.trunkApi.getObservationLogPath().then((path) => {
+        setObservationLogPath(path);
+        if (path) console.info(`INPUT TRACE LOG:\n${path}`);
+      });
+    }
     return () => {
       unsub?.();
       unsubBubble?.();
@@ -342,6 +351,27 @@ export function App() {
       const current = snapshotRef.current;
       if (!current) return;
       pointerIdsRef.current.add(event.pointerId);
+      pushInputTrace({
+        monitorId: current.monitorId,
+        windowId: routingIdentityRef.current.windowId,
+        eventType: event.type,
+        decision: 'INFO',
+        pointerId: event.pointerId,
+        pointerType: event.pointerType || 'unknown',
+        isPrimary: event.isPrimary,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        screenX: event.screenX,
+        screenY: event.screenY,
+        buttons: event.buttons,
+        target: describeEventTarget(event.target),
+        cancelable: event.cancelable,
+        defaultPrevented: event.defaultPrevented,
+        capture: true,
+        nativeTouchCount: nativeTouchCountRef.current,
+        pointerCount: pointerIdsRef.current.size,
+        extra: `scene=${current.globalScene} overlay=${current.own.localOverlay}`,
+      });
       if (!isDebugPanelEvent(event)) {
         recordHit(
           'pointerdown',
@@ -401,7 +431,31 @@ export function App() {
       reportActivity();
     };
     const onPointerUp = (event: PointerEvent) => {
+      const current = snapshotRef.current;
       pointerIdsRef.current.delete(event.pointerId);
+      pushInputTrace({
+        monitorId: current?.monitorId ?? -1,
+        windowId: routingIdentityRef.current.windowId,
+        eventType: event.type,
+        decision: 'INFO',
+        pointerId: event.pointerId,
+        pointerType: event.pointerType || 'unknown',
+        isPrimary: event.isPrimary,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        screenX: event.screenX,
+        screenY: event.screenY,
+        buttons: event.buttons,
+        button: event.button,
+        target: describeEventTarget(event.target),
+        currentTarget: describeEventTarget(event.currentTarget),
+        cancelable: event.cancelable,
+        defaultPrevented: event.defaultPrevented,
+        capture: true,
+        nativeTouchCount: nativeTouchCountRef.current,
+        pointerCount: pointerIdsRef.current.size,
+        extra: `scene=${current?.globalScene ?? '—'} overlay=${current?.own.localOverlay ?? '—'}`,
+      });
     };
     window.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('pointermove', onPointerMove, { capture: true });
@@ -409,6 +463,35 @@ export function App() {
     window.addEventListener('pointercancel', onPointerUp, { capture: true });
     const onTouchGuard = (event: TouchEvent) => {
       nativeTouchCountRef.current = event.touches.length;
+      if (event.type !== 'touchmove') {
+        const current = snapshotRef.current;
+        const touch = event.changedTouches[0];
+        pushInputTrace({
+          monitorId: current?.monitorId ?? -1,
+          windowId: routingIdentityRef.current.windowId,
+          eventType: event.type,
+          decision: event.touches.length >= 3 ? 'DROP_MULTI_TOUCH_BLOCKED' : 'INFO',
+          pointerId: touch?.identifier ?? null,
+          pointerType: 'touch',
+          isPrimary: null,
+          clientX: touch?.clientX ?? null,
+          clientY: touch?.clientY ?? null,
+          screenX: touch?.screenX ?? null,
+          screenY: touch?.screenY ?? null,
+          buttons: null,
+          target: describeEventTarget(event.target),
+          currentTarget: describeEventTarget(event.currentTarget),
+          cancelable: event.cancelable,
+          defaultPrevented: event.defaultPrevented,
+          capture: true,
+          nativeTouchCount: event.touches.length,
+          pointerCount: pointerIdsRef.current.size,
+          touchIdentifier: touch?.identifier ?? null,
+          touchesLength: event.touches.length,
+          changedTouchesLength: event.changedTouches.length,
+          extra: `scene=${current?.globalScene ?? '—'}`,
+        });
+      }
       if (isDebugPanelEvent(event)) return;
       if (event.type === 'touchstart') {
         const touch = event.changedTouches[0];
@@ -437,6 +520,57 @@ export function App() {
     window.addEventListener('touchmove', onTouchGuard, { capture: true, passive: false });
     window.addEventListener('touchend', onTouchGuard, { capture: true, passive: false });
     window.addEventListener('touchcancel', onTouchGuard, { capture: true, passive: false });
+    const onMouseOrClick = (event: MouseEvent) => {
+      const current = snapshotRef.current;
+      pushInputTrace({
+        monitorId: current?.monitorId ?? -1,
+        windowId: routingIdentityRef.current.windowId,
+        eventType: event.type,
+        decision: 'INFO',
+        pointerId: null,
+        pointerType: 'mouse',
+        isPrimary: null,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        screenX: event.screenX,
+        screenY: event.screenY,
+        buttons: event.buttons,
+        target: describeEventTarget(event.target),
+        cancelable: event.cancelable,
+        defaultPrevented: event.defaultPrevented,
+        capture: true,
+        nativeTouchCount: nativeTouchCountRef.current,
+        pointerCount: pointerIdsRef.current.size,
+        extra: `detail=${event.detail}`,
+      });
+    };
+    window.addEventListener('mousedown', onMouseOrClick, { capture: true });
+    window.addEventListener('mouseup', onMouseOrClick, { capture: true });
+    window.addEventListener('click', onMouseOrClick, { capture: true });
+    const onFocus = () => {
+      const current = snapshotRef.current;
+      pushInputTrace({
+        monitorId: current?.monitorId ?? -1,
+        windowId: routingIdentityRef.current.windowId,
+        eventType: 'focus',
+        decision: 'INFO',
+        pointerId: null,
+        pointerType: 'none',
+        isPrimary: null,
+        clientX: null,
+        clientY: null,
+        screenX: null,
+        screenY: null,
+        buttons: null,
+        target: 'window',
+        cancelable: null,
+        defaultPrevented: null,
+        capture: null,
+        nativeTouchCount: nativeTouchCountRef.current,
+        pointerCount: pointerIdsRef.current.size,
+      });
+    };
+    window.addEventListener('focus', onFocus);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove, true);
@@ -446,6 +580,10 @@ export function App() {
       window.removeEventListener('touchmove', onTouchGuard, true);
       window.removeEventListener('touchend', onTouchGuard, true);
       window.removeEventListener('touchcancel', onTouchGuard, true);
+      window.removeEventListener('mousedown', onMouseOrClick, true);
+      window.removeEventListener('mouseup', onMouseOrClick, true);
+      window.removeEventListener('click', onMouseOrClick, true);
+      window.removeEventListener('focus', onFocus);
     };
   }, [dispatch, reportActivity]);
 
@@ -583,19 +721,36 @@ export function App() {
     const el = videoRef.current;
     const video = snapshot?.video;
     if (!el || !video) return;
+    const adFields = () => {
+      const current = snapshotRef.current;
+      return {
+        monitorId: current?.monitorId ?? snapshot.monitorId,
+        windowId: routingIdentityRef.current.windowId,
+        contentId: current?.video.contentId ?? video.contentId,
+        sessionId: current?.video.sessionId ?? video.sessionId,
+        currentTime: Number.isFinite(el.currentTime) ? el.currentTime : null,
+        scene: current?.video.scene ?? video.scene,
+        globalScene: current?.globalScene ?? snapshot.globalScene,
+      };
+    };
     const show = snapshot.globalScene !== 'PRODUCT_LIST' && video.scene !== 'none' && video.track.found && video.track.url;
     const adsLoop = snapshot.globalScene === 'AD_IDLE' && Boolean(video.loop);
     const onEnded = () => {
       const current = snapshotRef.current;
       if (current?.globalScene === 'AD_IDLE' && current.video.loop) {
         el.currentTime = 0;
-        void el.play().catch(() => {});
+        void observedPlay(el, { ...adFields(), reason: 'ended-loop' }).catch(() => {});
         return;
       }
       if (current?.globalScene !== 'ANIMATION') return;
       void dispatch({ type: 'ANIMATION_COMPLETE' });
     };
+    const onPlaying = () => {
+      if (snapshotRef.current?.globalScene !== 'AD_IDLE') return;
+      observeAdEvent('VIDEO_PLAYING', adFields());
+    };
     el.addEventListener('ended', onEnded);
+    el.addEventListener('playing', onPlaying);
     el.loop = adsLoop;
     el.muted = snapshot.globalScene !== 'AD_IDLE';
     if (!show) {
@@ -603,15 +758,32 @@ export function App() {
       el.removeAttribute('src');
       el.pause();
       lastVideoKeyRef.current = '';
-      return () => el.removeEventListener('ended', onEnded);
+      return () => {
+        el.removeEventListener('ended', onEnded);
+        el.removeEventListener('playing', onPlaying);
+      };
     }
     el.hidden = false;
     const key = `${video.sessionId}:${video.track.url}`;
     if (key === lastVideoKeyRef.current) {
-      return () => el.removeEventListener('ended', onEnded);
+      return () => {
+        el.removeEventListener('ended', onEnded);
+        el.removeEventListener('playing', onPlaying);
+      };
     }
     lastVideoKeyRef.current = key;
+    if (snapshot.globalScene === 'AD_IDLE') {
+      observeAdEvent('AD_START_COMMAND', {
+        ...adFields(),
+        reason: 'renderer-src',
+        url: video.track.url,
+        startedAtMs: video.startedAtMs,
+      });
+    }
     el.src = video.track.url!;
+    if (snapshot.globalScene === 'AD_IDLE') {
+      armVideoFirstFrame(el, adFields());
+    }
     const elapsedMs = Math.max(0, Date.now() - video.startedAtMs);
     const applyClock = () => {
       const mediaMs =
@@ -625,11 +797,14 @@ export function App() {
           el.currentTime = Math.min(seek, Math.max(0, el.duration - 0.05));
         }
       }
-      void el.play().catch(() => {});
+      void observedPlay(el, { ...adFields(), reason: 'applyClock' }).catch(() => {});
     };
     el.addEventListener('loadedmetadata', applyClock, { once: true });
     el.load();
-    return () => el.removeEventListener('ended', onEnded);
+    return () => {
+      el.removeEventListener('ended', onEnded);
+      el.removeEventListener('playing', onPlaying);
+    };
   }, [dispatch, snapshot]);
 
   // Native HTML loop seeks to 0; without byte-range on trunk-content:// that seek
@@ -652,7 +827,14 @@ export function App() {
     const resume = () => {
       if (!shouldPlay()) return;
       if (!el.paused && !el.ended && el.readyState >= 2) return;
-      void el.play().catch(() => {});
+      void observedPlay(el, {
+        monitorId: snapshotRef.current?.monitorId ?? null,
+        windowId: routingIdentityRef.current.windowId,
+        contentId: snapshotRef.current?.video.contentId ?? null,
+        sessionId: snapshotRef.current?.video.sessionId ?? null,
+        currentTime: Number.isFinite(el.currentTime) ? el.currentTime : null,
+        reason: 'ad-idle-resume',
+      }).catch(() => {});
     };
     const watchdog = window.setInterval(() => {
       if (!shouldPlay()) return;
@@ -982,6 +1164,7 @@ export function App() {
             `orientation: ${layout.orientation}  config ${layout.width}x${layout.height}`,
             `windowBounds: ${layout.windowBounds.width}x${layout.windowBounds.height}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: monitor-${monitorId}`,
             `TOUCH ROUTING  thisWindowId: ${thisWindowId ?? '—'}  lastTouchWindowId: ${touchRouting?.lastTouchWindowId ?? '—'}  lastTouchMonitorId: ${touchRouting?.lastTouchMonitorId ?? '—'}  lastTouchDisplayId: ${touchRouting?.lastTouchDisplayId ?? '—'}`,
+            `INPUT TRACE LOG: ${observationLogPath ?? '(not started)'}`,
             `Case B cue: lastTouchWindowId unchanged across physical monitors → OS HID mapping (not app bubble).`,
             `FLAG sharedDisplayId=${windowMapping?.sharedDisplayId ?? '—'}  identicalBounds=${windowMapping?.identicalBounds ?? '—'}`,
             ...formatWindowMappingLines(windowMapping, thisWindowId, monitorId),
@@ -1026,6 +1209,9 @@ export function App() {
                   `oneFingerPanActive: ${listStats.oneFingerPanActive}  twoFingerPanActive: ${listStats.twoFingerPanActive}  multiTouchBlocked: ${listStats.multiTouchBlocked}`,
                   `lastPointerType: ${listStats.lastPointerType}  lastTouchMonitorId: ${listStats.lastTouchMonitorId ?? '—'}  displayId: ${layout.matchedDisplayId ?? '—'}  windowId: ${thisWindowId ?? `monitor-${monitorId}`}`,
                   `interactionSessionId: ${listStats.interactionSessionId}  ownerWindowId: ${listStats.ownerWindowId ?? '—'}  ownerDisplayId: ${listStats.ownerDisplayId ?? '—'}  lastCameraUpdate: ${listStats.lastCameraUpdateReason}`,
+                  listStats.inputTraceDebug.length
+                    ? ['INPUT_TRACE (this window, last 32):', ...listStats.inputTraceDebug.map((row, index) => `[${index}] ${row}`)].join('\n')
+                    : 'INPUT_TRACE: (none yet on this window — M3 touch should not appear here if routing is local)',
                   listStats.cameraPanDebug.length
                     ? listStats.cameraPanDebug.map((row, index) => `camWrite[${index}]: ${row}`).join('\n')
                     : 'camWrite: (none this session — debug mode only, ring of 8)',
@@ -1206,6 +1392,7 @@ export function App() {
                     lastCameraUpdateReason: listStats.lastCameraUpdateReason,
                     cameraPanDebug: listStats.cameraPanDebug,
                     bubbleActionDebug: listStats.bubbleActionDebug,
+                    inputTraceDebug: listStats.inputTraceDebug,
                     twoFingerDollyActive: listStats.twoFingerDollyActive,
                     twoFingerDollyDeltaY: Number(listStats.twoFingerDollyDeltaY.toFixed(1)),
                     twoFingerDollyTotalY: Number(listStats.twoFingerDollyTotalY.toFixed(1)),

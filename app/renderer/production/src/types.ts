@@ -163,6 +163,7 @@ export interface ListDebugStats {
   lastCameraUpdateReason: string;
   cameraPanDebug: string[];
   bubbleActionDebug: string[];
+  inputTraceDebug: string[];
   tapSuppressed: boolean;
   tapSuppressedByTwoFinger: boolean;
   tapSuppressedByMultiTouch: boolean;

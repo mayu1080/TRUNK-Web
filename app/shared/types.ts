@@ -269,6 +269,8 @@ export interface TrunkApi {
   getNoiseAsset(): Promise<NoiseAsset>;
   getBrandFonts(): Promise<BrandFontCatalog>;
   logEvent(event: LogEvent): Promise<boolean>;
+  appendObservation(record: Record<string, unknown>): void;
+  getObservationLogPath(): Promise<string | null>;
   getState(): Promise<MonitorState>;
   dispatch(action: StateAction): Promise<MonitorState>;
   onStateChanged(callback: (state: MonitorState) => void): () => void;
